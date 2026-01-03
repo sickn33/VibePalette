@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VibePalette</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- ============================================
+       MAIN CONTAINER - Polaroid-style frame
+       ============================================ -->
+  <div class="polaroid-container">
+
+    <!-- HEADER - Branding with Settings -->
+    <header class="header">
+      <h1 class="logo">🎨 VibePalette</h1>
+      <p class="tagline">Colors from your screen</p>
+      <button id="settings-button" class="settings-button" title="Settings">⚙</button>
+    </header>
+
+    <!-- ============================================
+         IMAGE DISPLAY - Shows captured screenshot
+         ============================================ -->
+    <div id="image-container" class="image-container">
+      <img id="preview-image" class="preview-image" alt="Screenshot preview">
+      <!-- Recapture button -->
+      <button id="recapture-button" class="recapture-button" title="Capture new screenshot">↻</button>
+    </div>
+
+    <!-- ============================================
+         COLOR PALETTE - Extracted colors
+         ============================================ -->
+    <div id="palette-container" class="palette-container hidden">
+      <div id="color-grid" class="color-grid">
+        <!-- Color blocks will be dynamically inserted here -->
+      </div>
+      <!-- Action buttons -->
+      <div class="palette-actions">
+        <button id="copy-palette-button" class="action-button secondary" title="Copy all colors">
+          <span>📋</span>
+        </button>
+        <button id="share-button" class="action-button secondary" title="Share palette URL">
+          <span>🔗</span>
+        </button>
+        <button id="export-button" class="action-button primary" title="Export palette">
+          <span class="export-icon">⬇</span>
+          <span>Export</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============================================
+         LOADING INDICATOR
+         ============================================ -->
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Capturing screen...</p>
+    </div>
+
+    <!-- ============================================
+         ERROR STATE
+         ============================================ -->
+    <div id="error-state" class="error-state hidden">
+      <span class="error-icon">⚠️</span>
+      <p class="error-text">Cannot capture this page</p>
+      <p class="error-hint">Try on a regular webpage</p>
+    </div>
+
+  </div>
+
+  <!-- ============================================
+       SETTINGS PANEL - Slide-out overlay
+       ============================================ -->
+  <div id="settings-overlay" class="settings-overlay hidden">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button id="settings-close" class="settings-close">✕</button>
+      </div>
+
+      <div class="settings-content">
+        <!-- Color Count -->
+        <div class="setting-group">
+          <label class="setting-label">
+            <span>Number of Colors</span>
+            <span id="color-count-value" class="setting-value">10</span>
+          </label>
+          <input type="range" id="color-count-slider" class="setting-slider" min="5" max="15" value="10">
+        </div>
+
+        <!-- Color Format -->
+        <div class="setting-group">
+          <label class="setting-label">Color Format</label>
+          <div class="format-selector">
+            <label class="format-option">
+              <input type="radio" name="color-format" value="hex" checked>
+              <span>HEX</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="color-format" value="rgb">
+              <span>RGB</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="color-format" value="hsl">
+              <span>HSL</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Export Format -->
+        <div class="setting-group">
+          <label class="setting-label">Export Format</label>
+          <div class="format-selector">
+            <label class="format-option">
+              <input type="radio" name="export-format" value="png" checked>
+              <span>PNG</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="export-format" value="css">
+              <span>CSS</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="export-format" value="json">
+              <span>JSON</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Image Export Options -->
+        <div class="setting-group" id="image-export-options">
+          <label class="checkbox-option">
+            <input type="checkbox" id="show-hex-in-export" checked>
+            <span>Show color codes in exported image</span>
+          </label>
+        </div>
+
+        <!-- Theme -->
+        <div class="setting-group">
+          <label class="setting-label">Theme</label>
+          <div class="format-selector">
+            <label class="format-option">
+              <input type="radio" name="theme" value="system" checked>
+              <span>Auto</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="theme" value="light">
+              <span>Light</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="theme" value="dark">
+              <span>Dark</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Keyboard Shortcuts -->
+        <div class="setting-group shortcuts-group">
+          <label class="setting-label">Keyboard Shortcuts</label>
+          <div class="shortcuts-list">
+            <div class="shortcut"><kbd>R</kbd> Recapture</div>
+            <div class="shortcut"><kbd>C</kbd> Copy All</div>
+            <div class="shortcut"><kbd>E</kbd> Export</div>
+            <div class="shortcut"><kbd>S</kbd> Settings</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       TOAST NOTIFICATION - Feedback
+       ============================================ -->
+  <div id="toast" class="toast hidden">
+    <span class="toast-icon">✓</span>
+    <span class="toast-text">Copied!</span>
+  </div>
+
+  <!-- Scripts -->
+  <script src="lib/color-thief.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+
+</html>
