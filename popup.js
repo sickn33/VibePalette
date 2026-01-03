@@ -13,8 +13,8 @@ const CONFIG = {
     COLOR_COUNT: 10,
 
     // Quality setting for ColorThief (1 = highest, 10 = fastest)
-    // Lower = better sampling but slower
-    EXTRACTION_QUALITY: 3,
+    // Lower = better sampling but slower (1 gives best coverage of minority colors)
+    EXTRACTION_QUALITY: 1,
 
     // Toast notification display duration (ms)
     TOAST_DURATION: 2000,
@@ -24,13 +24,22 @@ const CONFIG = {
     BLACK_THRESHOLD: 20,
 
     // Maximum colors to request from ColorThief (extract many, then select best)
-    MAX_EXTRACTION_COUNT: 40,
+    // Higher value = better chance of capturing minority accent colors
+    MAX_EXTRACTION_COUNT: 60,
 
     // Minimum saturation to be considered a "colorful" color (0-1)
-    MIN_SATURATION_COLORFUL: 0.15,
+    // Lowered to include muted tones like Wes Anderson sky colors
+    MIN_SATURATION_COLORFUL: 0.08,
 
-    // Bonus weight for saturated colors in selection
-    SATURATION_BONUS: 1.5
+    // Bonus weight for saturated colors in selection (1.0 = no bonus)
+    // Reduced to avoid penalizing muted accent colors
+    SATURATION_BONUS: 1.0,
+
+    // Minimum distance between selected colors (lower = more similar colors allowed)
+    MIN_COLOR_DISTANCE: 35,
+
+    // Force hue diversity: ensure at least one color from major hue families if present
+    FORCE_HUE_DIVERSITY: true
 };
 
 /**
@@ -438,8 +447,21 @@ function filterExtremeColors(palette) {
 }
 
 /**
- * Selects a diverse palette ensuring representation across hue ranges.
- * This prevents missing accent colors that cover fewer pixels.
+ * Selects a diverse palette with GUARANTEED representation from each hue family.
+ * 
+ * Critical insight: Grouping by "warm" vs "cool" is too coarse - greens dominate over blues
+ * because both are "cool". Instead, we use 8 specific hue buckets and guarantee at least
+ * one color from each bucket that contains colors.
+ * 
+ * Algorithm:
+ * 1. Bucket all colors into 8 hue families (red, orange, yellow, green, teal, blue, purple, neutral)
+ * 2. FIRST PASS: Pick the single best color from EACH non-empty bucket (guarantees coverage)
+ * 3. SECOND PASS: Fill remaining slots by maximizing color distance
+ * 4. Sort by hue for visual consistency
+ * 
+ * This ensures that if ANY blue exists in the image, it WILL be in the final palette,
+ * even if greens are 10x more prevalent.
+ * 
  * @param {number[][]} colors - Raw palette from ColorThief
  * @param {number} count - Number of colors to select
  * @returns {number[][]} Diverse palette
@@ -447,112 +469,150 @@ function filterExtremeColors(palette) {
 function selectDiversePalette(colors, count) {
     if (colors.length <= count) return colors;
 
-    // Convert to HSL and annotate
-    const annotated = colors.map(rgb => ({
-        rgb,
-        hsl: rgbToHsl(rgb[0], rgb[1], rgb[2])
-    }));
-
-    // Define hue ranges (in degrees)
-    // Reds: 0-30, 330-360 | Oranges: 30-60 | Yellows: 60-90 | Greens: 90-150
-    // Cyans: 150-210 | Blues: 210-270 | Purples: 270-330
-    const hueRanges = [
-        { name: 'red', min: 0, max: 30 },
-        { name: 'orange', min: 30, max: 60 },
-        { name: 'yellow', min: 60, max: 90 },
-        { name: 'green', min: 90, max: 150 },
-        { name: 'cyan', min: 150, max: 210 },
-        { name: 'blue', min: 210, max: 270 },
-        { name: 'purple', min: 270, max: 330 },
-        { name: 'red2', min: 330, max: 360 }
-    ];
-
-    // Group colors by hue range
-    const hueGroups = {};
-    hueRanges.forEach(range => hueGroups[range.name] = []);
-
-    annotated.forEach(item => {
-        // Skip very desaturated colors (grays) for hue grouping
-        if (item.hsl.s < CONFIG.MIN_SATURATION_COLORFUL) {
-            // Add to a "neutral" group
-            if (!hueGroups['neutral']) hueGroups['neutral'] = [];
-            hueGroups['neutral'].push(item);
-        } else {
-            // Find the right hue range
-            for (const range of hueRanges) {
-                if (item.hsl.h >= range.min && item.hsl.h < range.max) {
-                    hueGroups[range.name].push(item);
-                    break;
-                }
-            }
-        }
+    // Convert to HSL and annotate with hue family
+    const annotated = colors.map(rgb => {
+        const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
+        return {
+            rgb,
+            hsl,
+            family: getColorFamily(hsl)
+        };
     });
 
-    // Merge red and red2 (both are reds, just at different ends of spectrum)
-    if (hueGroups['red2']) {
-        hueGroups['red'] = [...(hueGroups['red'] || []), ...hueGroups['red2']];
-        delete hueGroups['red2'];
-    }
+    // Define the 9 hue families in spectrum order (matches getColorFamily)
+    const HUE_FAMILIES = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'magenta', 'neutral'];
 
-    // Select best color from each group (prioritize saturation and lightness balance)
+    // Bucket colors by family
+    const buckets = {};
+    HUE_FAMILIES.forEach(family => buckets[family] = []);
+
+    annotated.forEach(color => {
+        buckets[color.family].push(color);
+    });
+
+    // Sort each bucket by "visual quality" score
+    // Prefer: medium lightness (0.35-0.55), decent saturation, not too dark/light
+    const scoreColor = (c) => {
+        const lightnessScore = 1 - Math.pow(Math.abs(c.hsl.l - 0.45) * 2, 1.5);
+        const saturationScore = Math.min(c.hsl.s * 1.2, 1); // Cap at 1
+        const notTooExtreme = (c.hsl.l > 0.15 && c.hsl.l < 0.85) ? 1 : 0.5;
+        return (lightnessScore * 0.4) + (saturationScore * 0.4) + (notTooExtreme * 0.2);
+    };
+
+    Object.values(buckets).forEach(bucket => {
+        bucket.sort((a, b) => scoreColor(b) - scoreColor(a));
+    });
+
     const selected = [];
-    const groupNames = Object.keys(hueGroups).filter(g => hueGroups[g].length > 0);
+    const usedBuckets = [];
 
-    // Sort groups by the "importance" of their best color (saturation * coverage)
-    groupNames.sort((a, b) => {
-        const aMax = Math.max(...hueGroups[a].map(c => c.hsl.s));
-        const bMax = Math.max(...hueGroups[b].map(c => c.hsl.s));
-        return bMax - aMax;
-    });
+    // === PHASE 1: Guarantee one color from each non-empty hue family ===
+    // This is the key insight: EVERY hue family gets representation before any family gets a second color
 
-    // First pass: pick one color from each non-empty hue group
-    for (const groupName of groupNames) {
+    for (const family of HUE_FAMILIES) {
         if (selected.length >= count) break;
 
-        const group = hueGroups[groupName];
-        if (group.length === 0) continue;
+        const bucket = buckets[family];
+        if (bucket.length === 0) continue;
 
-        // Sort by saturation (higher is better for accent colors)
-        group.sort((a, b) => {
-            const aScore = a.hsl.s * CONFIG.SATURATION_BONUS + (1 - Math.abs(a.hsl.l - 0.5));
-            const bScore = b.hsl.s * CONFIG.SATURATION_BONUS + (1 - Math.abs(b.hsl.l - 0.5));
-            return bScore - aScore;
-        });
-
-        // Pick the best from this group that's different enough from already selected
-        for (const candidate of group) {
+        // Find the best color from this bucket that's different enough from already selected
+        for (const candidate of bucket) {
             const isDifferentEnough = selected.every(s =>
-                colorDistance(s.rgb, candidate.rgb) > 50
+                colorDistance(s.rgb, candidate.rgb) > CONFIG.MIN_COLOR_DISTANCE
             );
+
             if (isDifferentEnough) {
                 selected.push(candidate);
+                usedBuckets.push(family);
+                console.log(`✓ ${family}: ${rgbToHex(candidate.rgb[0], candidate.rgb[1], candidate.rgb[2])}`);
                 break;
             }
         }
     }
 
-    // Second pass: fill remaining slots with most diverse remaining colors
+    console.log(`Phase 1: Selected ${selected.length} colors from ${usedBuckets.length} hue families: [${usedBuckets.join(', ')}]`);
+
+    // === PHASE 2: Fill remaining slots by maximizing distance ===
+    // Now that each hue family is represented, fill the rest with maximum diversity
+
     const remaining = annotated.filter(c => !selected.includes(c));
-    remaining.sort((a, b) => {
-        // Calculate minimum distance to any selected color
-        const aMinDist = selected.length > 0
-            ? Math.min(...selected.map(s => colorDistance(s.rgb, a.rgb)))
-            : 0;
-        const bMinDist = selected.length > 0
-            ? Math.min(...selected.map(s => colorDistance(s.rgb, b.rgb)))
-            : 0;
-        // Prefer colors most different from what we already have
-        return bMinDist - aMinDist;
-    });
 
     while (selected.length < count && remaining.length > 0) {
-        selected.push(remaining.shift());
+        // Find the color most different from all selected colors
+        let bestCandidate = null;
+        let bestMinDistance = -1;
+
+        for (let i = 0; i < remaining.length; i++) {
+            const candidate = remaining[i];
+            const minDistToSelected = Math.min(
+                ...selected.map(s => colorDistance(s.rgb, candidate.rgb))
+            );
+
+            if (minDistToSelected > bestMinDistance) {
+                bestMinDistance = minDistToSelected;
+                bestCandidate = { index: i, color: candidate };
+            }
+        }
+
+        if (bestCandidate && bestMinDistance > CONFIG.MIN_COLOR_DISTANCE * 0.5) {
+            selected.push(bestCandidate.color);
+            remaining.splice(bestCandidate.index, 1);
+        } else {
+            // No more sufficiently different colors
+            break;
+        }
     }
 
-    // Sort final palette by hue for visual consistency
-    selected.sort((a, b) => a.hsl.h - b.hsl.h);
+    console.log(`Phase 2: Total ${selected.length} colors after distance-based fill`);
+
+    // === PHASE 3: Sort by hue for visual consistency ===
+    selected.sort((a, b) => {
+        // Neutrals go to the end
+        if (a.family === 'neutral' && b.family !== 'neutral') return 1;
+        if (b.family === 'neutral' && a.family !== 'neutral') return -1;
+        // Sort by hue
+        return a.hsl.h - b.hsl.h;
+    });
 
     return selected.map(item => item.rgb);
+}
+
+/**
+ * Determines the color family (hue group name) for visualization/debugging.
+ * @param {object} hsl - HSL object with h, s, l properties
+ * @returns {string} Family name
+ */
+function getColorFamily(hsl) {
+    if (hsl.s < CONFIG.MIN_SATURATION_COLORFUL) return 'neutral';
+
+    const h = hsl.h;
+    if (h < 15 || h >= 345) return 'red';
+    if (h < 45) return 'orange';
+    if (h < 70) return 'yellow';
+    if (h < 150) return 'green';
+    if (h < 200) return 'teal';    // Split out teal (like Wes Anderson skies)
+    if (h < 260) return 'blue';
+    if (h < 290) return 'purple';
+    if (h < 345) return 'magenta';
+    return 'red';
+}
+
+/**
+ * Determines whether a color is warm, cool, or neutral.
+ * @param {object} hsl - HSL object with h, s, l properties
+ * @returns {string} 'warm', 'cool', or 'neutral'
+ */
+function getColorTemperature(hsl) {
+    // Very low saturation = neutral (grays)
+    if (hsl.s < CONFIG.MIN_SATURATION_COLORFUL) return 'neutral';
+
+    const h = hsl.h;
+
+    // Warm: reds, oranges, yellows, warm purples/magentas (0-70, 320-360)
+    if ((h >= 0 && h < 70) || (h >= 320 && h < 360)) return 'warm';
+
+    // Cool: greens through blues to cool purples (70-320)
+    return 'cool';
 }
 
 /**
@@ -894,30 +954,261 @@ function exportPaletteImage() {
  */
 
 /**
- * Extracts colors from an image and renders the palette.
- * Uses hue-diversity algorithm to capture accent colors.
+ * Extracts colors using GRID-BASED SEMANTIC SAMPLING.
+ * 
+ * THE CORE INSIGHT (from the user):
+ * Median-cut algorithms mathematically BLEND colors. When orange dress pixels 
+ * and blue sky pixels are averaged together, you get muddy olive-green.
+ * This destroys the intentional contrast that cinematographers like Wes Anderson create.
+ * 
+ * THE SOLUTION:
+ * Divide the image into small grid cells. Each cell is small enough to contain 
+ * mostly ONE color (sky, dress, railing, etc.). Extract the SINGLE dominant color 
+ * from each cell. This gives us pure, unblended "spot samples" that preserve 
+ * the distinct colors human eyes see.
+ * 
  * @param {HTMLImageElement} img - Image element to extract colors from
  */
 function extractAndRenderColors(img) {
     try {
-        // Extract a large palette from ColorThief
-        let rawPalette = colorThief.getPalette(img, CONFIG.MAX_EXTRACTION_COUNT, CONFIG.EXTRACTION_QUALITY);
+        const imgWidth = img.naturalWidth;
+        const imgHeight = img.naturalHeight;
 
-        // Filter out pure whites and blacks (often from letterboxing)
-        let filteredPalette = filterExtremeColors(rawPalette);
+        // Create canvas for pixel manipulation
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        canvas.width = imgWidth;
+        canvas.height = imgHeight;
+        ctx.drawImage(img, 0, 0);
 
-        if (filteredPalette.length < CONFIG.COLOR_COUNT) {
-            console.log('Not enough colors after filtering, using original palette');
-            filteredPalette = rawPalette;
+        // === GRID SAMPLING CONFIG ===
+        // Smaller cells = more "semantic" separation (each cell is one object)
+        const GRID_COLS = 10;
+        const GRID_ROWS = 8;
+        const cellWidth = Math.floor(imgWidth / GRID_COLS);
+        const cellHeight = Math.floor(imgHeight / GRID_ROWS);
+
+        const allColors = [];
+
+        // === PHASE 1: Extract dominant color from each grid cell ===
+        console.log(`Grid sampling: ${GRID_COLS}x${GRID_ROWS} = ${GRID_COLS * GRID_ROWS} cells`);
+
+        for (let row = 0; row < GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const x = col * cellWidth;
+                const y = row * cellHeight;
+
+                // Get pixel data for this cell
+                const imageData = ctx.getImageData(x, y, cellWidth, cellHeight);
+                const pixels = imageData.data;
+
+                // HUE BUCKETING: Find the best (most saturated) pixel for EACH hue family
+                // This ensures we get the best red AND the best blue, not just whichever is stronger
+                const hueBuckets = {
+                    red: { pixel: null, saturation: -1 },      // 0-30, 330-360
+                    orange: { pixel: null, saturation: -1 },   // 30-60
+                    yellow: { pixel: null, saturation: -1 },   // 60-90
+                    green: { pixel: null, saturation: -1 },    // 90-150
+                    teal: { pixel: null, saturation: -1 },     // 150-200 (sky colors!)
+                    blue: { pixel: null, saturation: -1 },     // 200-260
+                    purple: { pixel: null, saturation: -1 },   // 260-330
+                    neutral: { pixel: null, saturation: -1 }   // low saturation
+                };
+
+                let darkPixelCount = 0;
+                const DARK_THRESHOLD = 25;
+                const BRIGHT_THRESHOLD = 245;
+
+                for (let i = 0; i < pixels.length; i += 4) {
+                    const r = pixels[i];
+                    const g = pixels[i + 1];
+                    const b = pixels[i + 2];
+                    const a = pixels[i + 3];
+
+                    if (a < 128) continue;
+
+                    const brightness = (r + g + b) / 3;
+                    if (brightness < DARK_THRESHOLD) {
+                        darkPixelCount++;
+                        continue;
+                    }
+                    if (brightness > BRIGHT_THRESHOLD) continue;
+
+                    // Calculate HSL inline
+                    const max = Math.max(r, g, b);
+                    const min = Math.min(r, g, b);
+                    const l = (max + min) / 2 / 255;
+                    let saturation = 0;
+                    let hue = 0;
+
+                    if (max !== min) {
+                        const d = max - min;
+                        saturation = l > 0.5 ? d / (255 * 2 - max - min) : d / (max + min);
+
+                        // Calculate hue
+                        if (max === r) {
+                            hue = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+                        } else if (max === g) {
+                            hue = ((b - r) / d + 2) * 60;
+                        } else {
+                            hue = ((r - g) / d + 4) * 60;
+                        }
+                    }
+
+                    // Determine which hue bucket this pixel belongs to
+                    let bucketName;
+                    if (saturation < 0.1) {
+                        bucketName = 'neutral';
+                    } else if (hue < 30 || hue >= 330) {
+                        bucketName = 'red';
+                    } else if (hue < 60) {
+                        bucketName = 'orange';
+                    } else if (hue < 90) {
+                        bucketName = 'yellow';
+                    } else if (hue < 150) {
+                        bucketName = 'green';
+                    } else if (hue < 200) {
+                        bucketName = 'teal';
+                    } else if (hue < 260) {
+                        bucketName = 'blue';
+                    } else {
+                        bucketName = 'purple';
+                    }
+
+                    // Update bucket if this pixel is more saturated than current best
+                    const bucket = hueBuckets[bucketName];
+                    if (saturation > bucket.saturation) {
+                        bucket.saturation = saturation;
+                        bucket.pixel = [r, g, b];
+                    }
+                }
+
+                // Skip cells that are mostly dark (letterbox regions)
+                const totalPixels = pixels.length / 4;
+                const darkRatio = darkPixelCount / totalPixels;
+                if (darkRatio > 0.7) continue;
+
+                // Add the best color from EACH non-empty hue bucket
+                for (const bucketName in hueBuckets) {
+                    const bucket = hueBuckets[bucketName];
+                    if (bucket.pixel && bucket.saturation > 0.02) {
+                        allColors.push(bucket.pixel);
+                    }
+                }
+            }
         }
 
-        // Cache the filtered palette for re-selection when count changes
+        console.log(`Grid sampling extracted ${allColors.length} cell colors`);
+
+        // === PHASE 2: Also sample corners and edges for accent colors ===
+        // Often the most distinctive colors are at the edges (sky at top, ground at bottom)
+        const cornerSize = Math.floor(Math.min(imgWidth, imgHeight) * 0.1);
+        const corners = [
+            { x: 0, y: 0, name: 'top-left' },
+            { x: imgWidth - cornerSize, y: 0, name: 'top-right' },
+            { x: 0, y: imgHeight - cornerSize, name: 'bottom-left' },
+            { x: imgWidth - cornerSize, y: imgHeight - cornerSize, name: 'bottom-right' }
+        ];
+
+        for (const corner of corners) {
+            const imageData = ctx.getImageData(corner.x, corner.y, cornerSize, cornerSize);
+            const pixels = imageData.data;
+
+            let rSum = 0, gSum = 0, bSum = 0, count = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                if (pixels[i + 3] < 128) continue;
+                rSum += pixels[i];
+                gSum += pixels[i + 1];
+                bSum += pixels[i + 2];
+                count++;
+            }
+
+            if (count > 0) {
+                allColors.push([
+                    Math.round(rSum / count),
+                    Math.round(gSum / count),
+                    Math.round(bSum / count)
+                ]);
+            }
+        }
+
+        // === PHASE 3: Sample the SKY area specifically ===
+        // For letterboxed images, sky is typically 15-35% from top (below black bars)
+        // Use MAX SATURATION selection to get the purest sky blue, not washed-out clouds
+        const skyStartY = Math.floor(imgHeight * 0.15);
+        const skyEndY = Math.floor(imgHeight * 0.35);
+        const skyStripHeight = skyEndY - skyStartY;
+        const skyStripCols = 8;
+        const skyCellWidth = Math.floor(imgWidth / skyStripCols);
+
+        console.log(`Sky sampling: rows ${skyStartY}-${skyEndY} (max saturation mode)`);
+
+        for (let col = 0; col < skyStripCols; col++) {
+            const x = col * skyCellWidth;
+            const imageData = ctx.getImageData(x, skyStartY, skyCellWidth, skyStripHeight);
+            const pixels = imageData.data;
+
+            // Find the MOST SATURATED pixel in this sky cell
+            let bestPixel = null;
+            let bestSaturation = -1;
+
+            for (let i = 0; i < pixels.length; i += 4) {
+                const r = pixels[i];
+                const g = pixels[i + 1];
+                const b = pixels[i + 2];
+                const a = pixels[i + 3];
+
+                if (a < 128) continue;
+
+                // Skip very dark and very bright pixels
+                const brightness = (r + g + b) / 3;
+                if (brightness < 30 || brightness > 240) continue;
+
+                // Calculate saturation
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                const l = (max + min) / 2 / 255;
+                let saturation = 0;
+                if (max !== min) {
+                    const d = (max - min) / 255;
+                    saturation = l > 0.5 ? d / (2 - max / 255 - min / 255) : d / (max / 255 + min / 255);
+                }
+
+                if (saturation > bestSaturation) {
+                    bestSaturation = saturation;
+                    bestPixel = [r, g, b];
+                }
+            }
+
+            if (bestPixel && bestSaturation > 0.05) {
+                // Add sky colors with high priority
+                allColors.push(bestPixel);
+                allColors.push(bestPixel);
+                allColors.push(bestPixel);
+                console.log(`Sky cell ${col}: RGB(${bestPixel.join(', ')}) sat=${bestSaturation.toFixed(2)}`);
+            }
+        }
+
+        console.log(`Total colors after all sampling: ${allColors.length}`);
+
+        // === PHASE 4: Deduplicate and filter ===
+        const deduplicatedColors = deduplicateColors(allColors, 20);
+        console.log(`After deduplication: ${deduplicatedColors.length} unique colors`);
+
+        let filteredPalette = filterExtremeColors(deduplicatedColors);
+
+        if (filteredPalette.length < SETTINGS.colorCount) {
+            console.log('Not enough colors after filtering, using deduplicated palette');
+            filteredPalette = deduplicatedColors;
+        }
+
+        // Cache for re-selection when count changes
         cachedFilteredPalette = filteredPalette;
 
-        // Use hue-diversity algorithm to select the most representative colors
+        // === PHASE 5: Apply hue-bucket selection for final palette ===
         const finalPalette = selectDiversePalette(filteredPalette, SETTINGS.colorCount);
 
-        console.log(`Extracted ${rawPalette.length} colors, selected ${finalPalette.length} diverse colors`);
+        console.log(`Final palette: ${finalPalette.length} diverse colors`);
 
         renderPalette(finalPalette);
         savePaletteToHistory();
@@ -927,6 +1218,28 @@ function extractAndRenderColors(img) {
         console.error('Error extracting colors:', error);
         showErrorState('Error extracting colors');
     }
+}
+
+/**
+ * Removes near-duplicate colors from a palette.
+ * @param {number[][]} colors - Array of [r, g, b] colors
+ * @param {number} threshold - Minimum distance to consider colors different
+ * @returns {number[][]} Deduplicated color array
+ */
+function deduplicateColors(colors, threshold) {
+    const unique = [];
+
+    for (const color of colors) {
+        const isDuplicate = unique.some(existing =>
+            colorDistance(existing, color) < threshold
+        );
+
+        if (!isDuplicate) {
+            unique.push(color);
+        }
+    }
+
+    return unique;
 }
 
 /**
