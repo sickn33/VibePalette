@@ -818,19 +818,101 @@ async function sharePalette() {
 }
 
 /**
- * Export palette as CSS custom properties
+ * Converts a color name to a valid CSS variable name.
+ * @param {string} name - Human-readable color name (e.g., "Deep Red", "Sky Blue")
+ * @returns {string} CSS-safe variable name (e.g., "deep-red", "sky-blue")
  */
-function exportAsCSS() {
-    const lines = [':root {'];
+function colorNameToVarName(name) {
+    return name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+}
+
+/**
+ * Generates unique CSS variable names for the palette.
+ * If there are duplicate color names, appends a number suffix.
+ * @param {number[][]} palette - Array of [r, g, b] colors
+ * @returns {string[]} Array of unique CSS variable names
+ */
+function generateCSSVarNames(palette) {
+    const nameCount = {};
+    const varNames = [];
+
+    palette.forEach(rgb => {
+        const colorName = getColorName(rgb);
+        const baseName = colorNameToVarName(colorName);
+
+        // Track occurrences
+        if (!nameCount[baseName]) {
+            nameCount[baseName] = 0;
+        }
+        nameCount[baseName]++;
+    });
+
+    // Reset for second pass
+    const nameUsed = {};
+
+    palette.forEach(rgb => {
+        const colorName = getColorName(rgb);
+        const baseName = colorNameToVarName(colorName);
+
+        if (!nameUsed[baseName]) {
+            nameUsed[baseName] = 0;
+        }
+        nameUsed[baseName]++;
+
+        // Add suffix only if there are duplicates
+        if (nameCount[baseName] > 1) {
+            varNames.push(`${baseName}-${nameUsed[baseName]}`);
+        } else {
+            varNames.push(baseName);
+        }
+    });
+
+    return varNames;
+}
+
+/**
+ * Export palette as CSS custom properties with semantic names.
+ * Uses color analysis to generate meaningful variable names.
+ */
+async function exportAsCSS() {
+    const varNames = generateCSSVarNames(currentPalette);
+    const lines = ['/* VibePalette - Extracted Colors */'];
+    lines.push(':root {');
+
     currentPalette.forEach((rgb, index) => {
-        const hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
-        lines.push(`  --palette-${index + 1}: ${hex};`);
+        const colorValue = formatColor(rgb);
+        const varName = varNames[index];
+        lines.push(`  --${varName}: ${colorValue};`);
+    });
+
+    lines.push('}');
+
+    // Also add numbered fallbacks for predictable access
+    lines.push('');
+    lines.push('/* Numbered aliases for programmatic access */');
+    lines.push(':root {');
+    currentPalette.forEach((rgb, index) => {
+        const colorValue = formatColor(rgb);
+        lines.push(`  --palette-${index + 1}: ${colorValue};`);
     });
     lines.push('}');
 
     const css = lines.join('\n');
+
+    // Copy to clipboard for quick use
+    const copied = await copyToClipboard(css);
+
+    // Also download as file
     downloadTextFile(css, `vibepalette-${Date.now()}.css`, 'text/css');
-    showToast('CSS exported!');
+
+    if (copied) {
+        showToast('CSS copied & downloaded!');
+    } else {
+        showToast('CSS exported!');
+    }
 }
 
 /**
