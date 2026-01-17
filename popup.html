@@ -1,186 +1,290 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VibePalette - Cinematic Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Didact+Gothic&family=Poiret+One&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VibePalette</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-  <!-- ============================================
-       MAIN CONTAINER - Polaroid-style frame
+  <body class="wes-anderson-mode">
+    <!-- ============================================
+       THE MAIN FRAME
        ============================================ -->
-  <div class="polaroid-container">
+    <div class="main-frame">
+      <div class="inner-frame">
+        <!-- HEADER - Cinematic Title -->
+        <header class="header">
+          <h1 class="logo">VibePalette</h1>
+          <p class="tagline">An Artistic Color Extractor</p>
+          <button
+            id="settings-button"
+            class="settings-button"
+            title="Open Settings"
+            aria-label="Settings"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-settings"
+            >
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.35a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              ></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </header>
 
-    <!-- HEADER - Branding with Settings -->
-    <header class="header">
-      <h1 class="logo">🎨 VibePalette</h1>
-      <p class="tagline">Colors from your screen</p>
-      <button id="settings-button" class="settings-button" title="Settings">⚙</button>
-    </header>
-
-    <!-- ============================================
-         IMAGE DISPLAY - Shows captured screenshot
-         ============================================ -->
-    <div id="image-container" class="image-container">
-      <img id="preview-image" class="preview-image" alt="Screenshot preview">
-      <!-- Recapture button -->
-      <button id="recapture-button" class="recapture-button" title="Capture new screenshot">↻</button>
-    </div>
-
-    <!-- ============================================
-         COLOR PALETTE - Extracted colors
-         ============================================ -->
-    <div id="palette-container" class="palette-container hidden">
-      <div id="color-grid" class="color-grid">
-        <!-- Color blocks will be dynamically inserted here -->
-      </div>
-      <!-- Action buttons -->
-      <div class="palette-actions">
-        <button id="copy-palette-button" class="action-button secondary" title="Copy all colors">
-          <span>📋</span>
-        </button>
-        <button id="share-button" class="action-button secondary" title="Share palette URL">
-          <span>🔗</span>
-        </button>
-        <button id="export-button" class="action-button primary" title="Export palette">
-          <span class="export-icon">⬇</span>
-          <span>Export</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- ============================================
-         LOADING INDICATOR
-         ============================================ -->
-    <div id="loading" class="loading">
-      <div class="spinner"></div>
-      <p>Capturing screen...</p>
-    </div>
-
-    <!-- ============================================
-         ERROR STATE
-         ============================================ -->
-    <div id="error-state" class="error-state hidden">
-      <span class="error-icon">⚠️</span>
-      <p class="error-text">Cannot capture this page</p>
-      <p class="error-hint">Try on a regular webpage</p>
-    </div>
-
-  </div>
-
-  <!-- ============================================
-       SETTINGS PANEL - Slide-out overlay
-       ============================================ -->
-  <div id="settings-overlay" class="settings-overlay hidden">
-    <div class="settings-panel">
-      <div class="settings-header">
-        <h2>Settings</h2>
-        <button id="settings-close" class="settings-close">✕</button>
-      </div>
-
-      <div class="settings-content">
-        <!-- Color Count -->
-        <div class="setting-group">
-          <label class="setting-label">
-            <span>Number of Colors</span>
-            <span id="color-count-value" class="setting-value">10</span>
-          </label>
-          <input type="range" id="color-count-slider" class="setting-slider" min="5" max="15" value="10">
+        <!-- ============================================
+           IMAGE DISPLAY - Perfectly Centered
+           ============================================ -->
+        <div id="image-container" class="image-container wa-panel">
+          <img id="preview-image" class="preview-image" alt="Cinematic scene" />
+          <!-- Recapture button - Snappy placement -->
+          <button
+            id="recapture-button"
+            class="recapture-button"
+            title="Recapture Scene"
+            aria-label="Recapture"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-camera"
+            >
+              <path
+                d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+              ></path>
+              <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+          </button>
         </div>
 
-        <!-- Color Format -->
-        <div class="setting-group">
-          <label class="setting-label">Color Format</label>
-          <div class="format-selector">
-            <label class="format-option">
-              <input type="radio" name="color-format" value="hex" checked>
-              <span>HEX</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="color-format" value="rgb">
-              <span>RGB</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="color-format" value="hsl">
-              <span>HSL</span>
-            </label>
+        <!-- ============================================
+           PALETTE - The Color Collection
+           ============================================ -->
+        <div id="palette-container" class="palette-container hidden">
+          <div id="color-grid" class="color-grid">
+            <!-- Color blocks inserted here -->
+          </div>
+
+          <div class="palette-divider"></div>
+
+          <!-- Action buttons - Symmetrical row -->
+          <div class="palette-actions">
+            <button
+              id="copy-palette-button"
+              class="wa-btn secondary"
+              title="Copy Collection"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-clipboard"
+              >
+                <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+                <path
+                  d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+                ></path>
+              </svg>
+            </button>
+            <button
+              id="share-button"
+              class="wa-btn secondary"
+              title="Share Palette"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-send"
+              >
+                <path d="m22 2-7 20-4-9-9-4Z"></path>
+                <path d="M22 2 11 13"></path>
+              </svg>
+            </button>
+            <button
+              id="export-button"
+              class="wa-btn primary"
+              title="Export as Art"
+            >
+              <span>Export Collection</span>
+            </button>
           </div>
         </div>
 
-        <!-- Export Format -->
-        <div class="setting-group">
-          <label class="setting-label">Export Format</label>
-          <div class="format-selector">
-            <label class="format-option">
-              <input type="radio" name="export-format" value="png" checked>
-              <span>PNG</span>
+        <!-- LOADING -->
+        <div id="loading" class="loading">
+          <div class="spinner"></div>
+          <p>Developing film...</p>
+        </div>
+
+        <!-- ERROR -->
+        <div id="error-state" class="error-state hidden">
+          <p class="error-text">SCENE INTERRUPTED</p>
+          <p class="error-hint">Please try a different view</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div id="settings-overlay" class="settings-overlay hidden">
+      <div class="settings-panel wa-panel">
+        <div class="settings-header">
+          <h2>Specifications</h2>
+          <button
+            id="settings-close"
+            class="settings-close"
+            aria-label="Close Specifications"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-x"
+            >
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="settings-content">
+          <div class="setting-group">
+            <label class="setting-label">
+              <span>Color Density</span>
+              <span id="color-count-value" class="setting-value">10</span>
             </label>
-            <label class="format-option">
-              <input type="radio" name="export-format" value="css">
-              <span>CSS</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="export-format" value="json">
-              <span>JSON</span>
+            <input
+              type="range"
+              id="color-count-slider"
+              class="setting-slider"
+              min="5"
+              max="15"
+              value="10"
+              aria-label="Color Density"
+            />
+          </div>
+
+          <div class="setting-group" id="image-export-options">
+            <label class="checkbox-option">
+              <input type="checkbox" id="show-hex-in-export" checked />
+              <span>Detail color codes in collection</span>
             </label>
           </div>
-        </div>
 
-        <!-- Image Export Options -->
-        <div class="setting-group" id="image-export-options">
-          <label class="checkbox-option">
-            <input type="checkbox" id="show-hex-in-export" checked>
-            <span>Show color codes in exported image</span>
-          </label>
-        </div>
-
-        <!-- Theme -->
-        <div class="setting-group">
-          <label class="setting-label">Theme</label>
-          <div class="format-selector">
-            <label class="format-option">
-              <input type="radio" name="theme" value="system" checked>
-              <span>Auto</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="theme" value="light">
-              <span>Light</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="theme" value="dark">
-              <span>Dark</span>
-            </label>
+          <div class="setting-group">
+            <label class="setting-label">Color Notation</label>
+            <div class="format-selector">
+              <label class="format-option">
+                <input type="radio" name="color-format" value="hex" checked />
+                <span>HEX</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="color-format" value="rgb" />
+                <span>RGB</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="color-format" value="hsl" />
+                <span>HSL</span>
+              </label>
+            </div>
           </div>
-        </div>
 
-        <!-- Keyboard Shortcuts -->
-        <div class="setting-group shortcuts-group">
-          <label class="setting-label">Keyboard Shortcuts</label>
-          <div class="shortcuts-list">
-            <div class="shortcut"><kbd>R</kbd> Recapture</div>
-            <div class="shortcut"><kbd>C</kbd> Copy All</div>
-            <div class="shortcut"><kbd>E</kbd> Export</div>
-            <div class="shortcut"><kbd>S</kbd> Settings</div>
+          <div class="setting-group">
+            <label class="setting-label">Export Medium</label>
+            <div class="format-selector">
+              <label class="format-option">
+                <input type="radio" name="export-format" value="png" checked />
+                <span>IMAGE</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="export-format" value="css" />
+                <span>CSS</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="export-format" value="json" />
+                <span>JSON</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">Atmosphere</label>
+            <div class="format-selector">
+              <label class="format-option">
+                <input type="radio" name="theme" value="system" checked />
+                <span>AUTO</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="theme" value="light" />
+                <span>LIGHT</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="theme" value="dark" />
+                <span>DARK</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-group shortcuts-group">
+            <label class="setting-label">Operation Guide</label>
+            <div class="shortcuts-list">
+              <div class="shortcut"><kbd>R</kbd> Develop</div>
+              <div class="shortcut"><kbd>C</kbd> Collect</div>
+              <div class="shortcut"><kbd>E</kbd> Export</div>
+              <div class="shortcut"><kbd>S</kbd> Specs</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ============================================
-       TOAST NOTIFICATION - Feedback
-       ============================================ -->
-  <div id="toast" class="toast hidden">
-    <span class="toast-icon">✓</span>
-    <span class="toast-text">Copied!</span>
-  </div>
+    <div id="toast" class="toast hidden">
+      <span class="toast-text">Collection Updated</span>
+    </div>
 
-  <!-- Scripts -->
-  <script src="lib/color-thief.min.js"></script>
-  <script src="popup.js"></script>
-</body>
-
+    <script src="lib/color-thief.min.js"></script>
+    <script src="popup.js"></script>
+  </body>
 </html>

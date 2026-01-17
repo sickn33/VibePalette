@@ -202,7 +202,7 @@ function applySettingsToUI() {
 }
 
 /**
- * Apply theme to body
+ * Apply theme to body - Optimized for Wes Anderson Mode
  */
 function applyTheme() {
   document.body.classList.remove("theme-light", "theme-dark");
@@ -211,7 +211,6 @@ function applyTheme() {
   } else if (SETTINGS.theme === "dark") {
     document.body.classList.add("theme-dark");
   }
-  // 'system' uses no class, relying on prefers-color-scheme media query
 }
 
 /**
@@ -694,10 +693,10 @@ function getColorTemperature(hsl) {
 }
 
 /**
- * Shows a toast notification with the given message.
+ * Shows a cinematic toast notification.
  * @param {string} message - Message to display
  */
-function showToast(message = "Copied!") {
+function showToast(message = "Palette Updated") {
   const toastText = DOM.toast.querySelector(".toast-text");
   if (toastText) {
     toastText.textContent = message;
@@ -1027,91 +1026,180 @@ function downloadTextFile(content, filename, mimeType) {
 }
 
 /**
- * Generates and downloads a cinema palette image with the screenshot
- * and tall square color blocks at the bottom (like cinema color grading references).
+ * Generates and downloads a cinematic Wes Anderson-style palette image.
+ * Multi-Row Layout: Colors wrap into multiple rows to ensure text legibility.
  */
-function exportPaletteImage() {
+async function exportPaletteImage() {
   if (!DOM.previewImage.src || currentPalette.length === 0) {
-    showToast("No palette to export");
+    showToast("No collection to export");
     return;
   }
+
+  // Ensure fonts are loaded before drawing to canvas
+  await document.fonts.ready;
+
+  const WA_CREAM = "#FDF5E6";
+  const WA_BROWN = "#5D4037";
+  const numColors = currentPalette.length;
 
   // Create canvas
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
-  // Get the original image dimensions
+  // Get image dimensions
   const img = DOM.previewImage;
-  const imgWidth = img.naturalWidth;
-  const imgHeight = img.naturalHeight;
+  const imgW = img.naturalWidth;
+  const imgH = img.naturalHeight;
 
-  // Layout settings for Wes Anderson cinema-style palette
-  const whiteGap = 4; // White separator line width (vertical and horizontal)
-  const numColors = currentPalette.length;
+  // --- SMART BALANCED MULTI-ROW LAYOUT ---
+  // Goal: distribute colors evenly to avoid unbalanced rows like 7-7-1
+  // For 15 colors: 5-5-5 is better than 7-7-1
+  // For 10 colors: 5-5 is better than 7-3
 
-  // Calculate block dimensions: width based on image width
-  const totalGaps = (numColors - 1) * whiteGap;
-  const blockWidth = Math.floor((imgWidth - totalGaps) / numColors);
-  const blockHeight = Math.floor(blockWidth * 1.2); // Tall rectangles
+  const MAX_COLS = 7;
+  let colsPerRow;
+  let numRows;
 
-  // Recalculate actual color bar width to ensure it matches image width
-  const actualColorBarWidth = blockWidth * numColors + totalGaps;
-  const xOffset = Math.floor((imgWidth - actualColorBarWidth) / 2); // Center if slightly off
+  // Find optimal column count that creates balanced rows
+  if (numColors <= MAX_COLS) {
+    // Single row
+    colsPerRow = numColors;
+    numRows = 1;
+  } else {
+    // Try to find a divisor or near-even split
+    // Prefer 2-3 rows with similar counts
+    numRows = Math.ceil(numColors / MAX_COLS);
+    colsPerRow = Math.ceil(numColors / numRows);
+  }
 
-  // Total canvas size: image + white horizontal gap + color blocks
-  const canvasWidth = imgWidth;
-  const canvasHeight = imgHeight + whiteGap + blockHeight;
+  const padding = Math.floor(imgW * 0.06);
+  const titleSpace = Math.floor(imgW * 0.12);
+  const blockGap = 12;
+
+  // Block width based on fitting colsPerRow in imgW
+  const blockWidth = Math.floor(
+    (imgW - (colsPerRow - 1) * blockGap) / colsPerRow,
+  );
+  const blockHeight = Math.floor(blockWidth * 1.2);
+
+  // Space for labels below each row - MUCH bigger for massive fonts
+  const labelSpace = 150;
+  const rowHeight = blockHeight + labelSpace;
+
+  const footerSpace = 60;
+
+  // Canvas dimensions
+  const canvasWidth = imgW + padding * 2;
+  const canvasHeight =
+    imgH + padding + titleSpace + numRows * rowHeight + footerSpace;
 
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
 
-  // Fill white background (creates the separators)
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  // 1. Background
+  ctx.fillStyle = WA_CREAM;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Draw the screenshot image at the top
-  ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
+  // 2. Double Frame
+  ctx.strokeStyle = WA_BROWN;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+  ctx.lineWidth = 3;
+  ctx.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
 
-  // Draw color palette below the white gap
-  const colorBarY = imgHeight + whiteGap;
+  // 3. Main Clip/Screenshot
+  ctx.drawImage(img, padding, padding, imgW, imgH);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padding, padding, imgW, imgH);
 
-  // Calculate font size based on block width (responsive)
-  // Smaller font for RGB/HSL formats which are longer
-  const baseFontSize = Math.max(10, Math.floor(blockWidth * 0.12));
-  const fontSize =
-    SETTINGS.colorFormat === "hex"
-      ? baseFontSize
-      : Math.max(8, baseFontSize * 0.75);
-  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+  // 4. Title Card
+  ctx.fillStyle = WA_BROWN;
   ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
 
-  currentPalette.forEach((rgb, index) => {
+  const titleFontSize = Math.max(28, Math.floor(imgW * 0.04));
+  ctx.font = `italic ${titleFontSize}px "Poiret One", cursive, serif`;
+  ctx.fillText(
+    "A VibePalette Collection",
+    canvas.width / 2,
+    padding + imgH + titleSpace * 0.5,
+  );
+
+  // Divider line
+  ctx.beginPath();
+  ctx.moveTo(canvas.width * 0.3, padding + imgH + titleSpace * 0.7);
+  ctx.lineTo(canvas.width * 0.7, padding + imgH + titleSpace * 0.7);
+  ctx.stroke();
+
+  // 5. Color Blocks with Metadata (MULTI-ROW)
+  const paletteStartY = padding + imgH + titleSpace;
+
+  // Fixed, MASSIVE font sizes for guaranteed legibility
+  const nameFontSize = 48;
+  const hexFontSize = 36;
+
+  currentPalette.forEach((rgb, i) => {
+    const row = Math.floor(i / colsPerRow);
+    const col = i % colsPerRow;
+
+    // Calculate how many items are in this row (last row might be partial)
+    const itemsInThisRow = Math.min(colsPerRow, numColors - row * colsPerRow);
+
+    // Center the row
+    const rowWidth =
+      itemsInThisRow * blockWidth + (itemsInThisRow - 1) * blockGap;
+    const rowStartX = (canvasWidth - rowWidth) / 2;
+
+    const x = rowStartX + col * (blockWidth + blockGap);
+    const y = paletteStartY + row * rowHeight;
+
     const hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
-    const colorLabel = formatColor(rgb);
+    const colorName = getColorName(rgb);
+
+    // Block
     ctx.fillStyle = hex;
+    ctx.fillRect(x, y, blockWidth, blockHeight);
+    ctx.strokeStyle = WA_BROWN;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, blockWidth, blockHeight);
 
-    const blockX = xOffset + index * (blockWidth + whiteGap);
-    ctx.fillRect(blockX, colorBarY, blockWidth, blockHeight);
+    // Labels
+    ctx.fillStyle = WA_BROWN;
 
-    // Calculate luminance to determine text color (white or black)
-    const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
-    ctx.fillStyle = luminance > 0.5 ? "#000000" : "#FFFFFF";
+    // Color Name
+    ctx.font = `bold ${nameFontSize}px "Didact Gothic", sans-serif`;
+    let displayName = colorName.toUpperCase();
+    // Truncate if wider than block
+    while (
+      ctx.measureText(displayName).width > blockWidth &&
+      displayName.length > 3
+    ) {
+      displayName = displayName.slice(0, -1);
+    }
+    if (displayName !== colorName.toUpperCase()) displayName += "..";
 
-    // Draw color code at the bottom of the rectangle
-    const textX = blockX + blockWidth / 2;
-    const textY = colorBarY + blockHeight - 8; // 8px padding from bottom edge
-    ctx.fillText(colorLabel, textX, textY);
+    ctx.fillText(displayName, x + blockWidth / 2, y + blockHeight + 60);
+
+    // HEX Code
+    ctx.font = `${hexFontSize}px "Courier New", monospace`;
+    ctx.fillText(hex, x + blockWidth / 2, y + blockHeight + 110);
   });
 
-  // Generate download
+  // 6. Footer Signature
+  ctx.font = `bold 12px "Didact Gothic", sans-serif`;
+  ctx.fillText(
+    `EXTRACTED ${new Date().toLocaleDateString().toUpperCase()} • POS. ${Math.floor(Math.random() * 9000 + 1000)}`,
+    canvas.width / 2,
+    canvas.height - 25,
+  );
+
+  // Download
   const dataUrl = canvas.toDataURL("image/png");
   const link = document.createElement("a");
-  link.download = `vibepalette-${Date.now()}.png`;
+  link.download = `vibepalette-collector-no${Date.now()}.png`;
   link.href = dataUrl;
   link.click();
 
-  showToast("Palette exported!");
+  showToast("Collection Exported!");
 }
 
 /**
@@ -1600,13 +1688,15 @@ function initSettingsPanel() {
   if (DOM.settingsButton) {
     DOM.settingsButton.addEventListener("click", () => {
       DOM.settingsOverlay.classList.remove("hidden");
+      setTimeout(() => DOM.settingsOverlay.classList.add("show"), 10);
     });
   }
 
   // Close settings
   if (DOM.settingsClose) {
     DOM.settingsClose.addEventListener("click", () => {
-      DOM.settingsOverlay.classList.add("hidden");
+      DOM.settingsOverlay.classList.remove("show");
+      setTimeout(() => DOM.settingsOverlay.classList.add("hidden"), 100);
     });
   }
 
@@ -1614,7 +1704,8 @@ function initSettingsPanel() {
   if (DOM.settingsOverlay) {
     DOM.settingsOverlay.addEventListener("click", (e) => {
       if (e.target === DOM.settingsOverlay) {
-        DOM.settingsOverlay.classList.add("hidden");
+        DOM.settingsOverlay.classList.remove("show");
+        setTimeout(() => DOM.settingsOverlay.classList.add("hidden"), 100);
       }
     });
   }

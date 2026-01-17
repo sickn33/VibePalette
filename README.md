@@ -8,7 +8,11 @@
 
 - 📸 **Instant Capture**: Takes a screenshot of your current tab instantly.
 - 🎨 **Smart Extraction**: Uses a hue-diversity algorithm to find the most interesting colors, not just the most dominant ones.
-- 🖼️ **Cinema-Style Export**: Save your palette as a beautiful image with color blocks (Wes Anderson style).
+- 🎬 **Cinematic Export**: Save your palette as a "Wes Anderson" style Title Card with:
+  - 📏 **Double Framing** & Symmetric Layout
+  - 🖋️ **Massive Typography** for readability
+  - ⚖️ **Smart Row Balancing** algorithm
+  - 🎞️ **Vintage Palette** & Esthetic
 - 💻 **Dev-Friendly Exports**:
   - Copy as CSS Variables (`:root { --palette-1: #... }`)
   - Export as JSON
