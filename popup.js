@@ -108,6 +108,17 @@ const DOM = {
 
 /**
  * ============================================
+ * SHARED RESOURCES - Optimized for performance
+ * ============================================
+ */
+const sharedCanvas =
+  typeof document !== "undefined" ? document.createElement("canvas") : null;
+const sharedCtx = sharedCanvas
+  ? sharedCanvas.getContext("2d", { willReadFrequently: true })
+  : null;
+
+/**
+ * ============================================
  * COLOR THIEF INSTANCE
  * ============================================
  */
@@ -132,11 +143,11 @@ const SETTINGS = {
 async function loadSettings() {
   try {
     const stored = await chrome.storage.sync.get(["vibepaletteSettings"]);
-    if (stored.vibepaletteSettings) {
+    if (stored && stored.vibepaletteSettings) {
       Object.assign(SETTINGS, stored.vibepaletteSettings);
     }
   } catch (error) {
-    logger.warn("Could not load settings:", error);
+    logger.warn("Could not load settings - using defaults:", error);
   }
 }
 
@@ -229,11 +240,12 @@ const MAX_HISTORY_SIZE = 5;
 async function loadPaletteHistory() {
   try {
     const stored = await chrome.storage.local.get(["vibepaletteHistory"]);
-    if (stored.vibepaletteHistory) {
+    if (stored && stored.vibepaletteHistory) {
       paletteHistory = stored.vibepaletteHistory;
     }
   } catch (error) {
-    logger.warn("Could not load palette history:", error);
+    logger.warn("Could not load palette history - using empty history:", error);
+    paletteHistory = [];
   }
 }
 
@@ -1229,12 +1241,10 @@ function extractAndRenderColors(img) {
     const imgWidth = img.naturalWidth;
     const imgHeight = img.naturalHeight;
 
-    // Create canvas for pixel manipulation
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    canvas.width = imgWidth;
-    canvas.height = imgHeight;
-    ctx.drawImage(img, 0, 0);
+    // Use shared canvas for pixel manipulation
+    sharedCanvas.width = imgWidth;
+    sharedCanvas.height = imgHeight;
+    sharedCtx.drawImage(img, 0, 0);
 
     // === GRID SAMPLING CONFIG ===
     // Smaller cells = more "semantic" separation (each cell is one object)
@@ -1256,7 +1266,7 @@ function extractAndRenderColors(img) {
         const y = row * cellHeight;
 
         // Get pixel data for this cell
-        const imageData = ctx.getImageData(x, y, cellWidth, cellHeight);
+        const imageData = sharedCtx.getImageData(x, y, cellWidth, cellHeight);
         const pixels = imageData.data;
 
         // HUE BUCKETING: Find the best (most saturated) pixel for EACH hue family
@@ -1372,7 +1382,7 @@ function extractAndRenderColors(img) {
     ];
 
     for (const corner of corners) {
-      const imageData = ctx.getImageData(
+      const imageData = sharedCtx.getImageData(
         corner.x,
         corner.y,
         cornerSize,
@@ -1416,7 +1426,7 @@ function extractAndRenderColors(img) {
 
     for (let col = 0; col < skyStripCols; col++) {
       const x = col * skyCellWidth;
-      const imageData = ctx.getImageData(
+      const imageData = sharedCtx.getImageData(
         x,
         skyStartY,
         skyCellWidth,
@@ -1612,15 +1622,10 @@ function initEyedropper() {
     const x = Math.floor((e.clientX - rect.left) * scaleX);
     const y = Math.floor((e.clientY - rect.top) * scaleY);
 
-    // Create canvas to get pixel color
-    const canvas = document.createElement("canvas");
-    canvas.width = DOM.previewImage.naturalWidth;
-    canvas.height = DOM.previewImage.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(DOM.previewImage, 0, 0);
+    // Get pixel color from shared canvas (already updated in captureScreenshot)
+    if (!sharedCanvas || sharedCanvas.width === 0) return;
 
-    // Get pixel color
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
+    const pixel = sharedCtx.getImageData(x, y, 1, 1).data;
     const rgb = [pixel[0], pixel[1], pixel[2]];
     const colorValue = formatColor(rgb);
     const colorName = getColorName(rgb);
@@ -1864,8 +1869,30 @@ async function init() {
 }
 
 // Run initialization when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
+if (typeof document !== "undefined" && typeof process === "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+}
+
+// Export for Vitest
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    loadSettings,
+    loadPaletteHistory,
+    extractAndRenderColors,
+    initEyedropper,
+    getColorFamily,
+    getColorName,
+    formatColor,
+    rgbToHex,
+    copyToClipboard,
+    showToast,
+    showErrorState,
+    showLoadingState,
+    showResultState,
+    SETTINGS,
+  };
 }

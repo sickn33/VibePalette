@@ -2,7 +2,7 @@
 
 **VibePalette** is a Chrome Extension that lets you extract beautiful color palettes from any image or website on your screen.
 
-<img src="icons/icon128.png" width="100" align="right" />
+![VibePalette logo](icons/icon128.png)
 
 ## Features
 
@@ -39,7 +39,24 @@
 - **Vanilla JavaScript** (No heavy frameworks)
 - **ColorThief** (for base color extraction)
 - **HTML5 Canvas** (for image processing)
+- **Vitest & JSDOM** (for automated testing)
 
-## License
+## Project Structure
+
+- `background.js`: Extension background logic.
+- `popup.*`: The main extension interface and logic.
+- `lib/`: Third-party dependencies.
+- `icons/`: Extension assets.
+- `tests/`: Automated unit tests.
+- `docs/`: Development logs and planning.
+
+## Development
+
+To run tests:
+
+```bash
+npm install
+npm test
+```
 
 MIT

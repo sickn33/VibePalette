@@ -1,0 +1,28 @@
+{
+  "name": "vibepalette",
+  "version": "1.0.0",
+  "description": "**VibePalette** is a Chrome Extension that lets you extract beautiful color palettes from any image or website on your screen.",
+  "main": "background.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "vitest run tests/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sickn33/VibePalette.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sickn33/VibePalette/issues"
+  },
+  "homepage": "https://github.com/sickn33/VibePalette#readme",
+  "devDependencies": {
+    "@vitest/browser": "^3.2.4",
+    "jsdom": "^27.0.1",
+    "vitest": "^3.2.4"
+  }
+}
