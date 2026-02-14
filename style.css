@@ -3,6 +3,22 @@
    Aulico, Preciso, Artistico
    ============================================ */
 
+@font-face {
+  font-family: "Didact Gothic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/DidactGothic-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Poiret One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/PoiretOne-Regular.ttf") format("truetype");
+}
+
 :root {
   /* The Grand Budapest Palette */
   --wa-cream: #fdf5e6;

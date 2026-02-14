@@ -1,5 +1,5 @@
 /* ============================================
-   VIBEPALETTE - POPUP SCRIPT
+   VIBEPALETTE - POPUP SCRIPT (Orchestrator)
    Chrome Extension for Screen Color Extraction
    ============================================ */
 
@@ -13,7 +13,6 @@ const CONFIG = {
   COLOR_COUNT: 10,
 
   // Quality setting for ColorThief (1 = highest, 10 = fastest)
-  // Lower = better sampling but slower (1 gives best coverage of minority colors)
   EXTRACTION_QUALITY: 1,
 
   // Toast notification display duration (ms)
@@ -24,15 +23,12 @@ const CONFIG = {
   BLACK_THRESHOLD: 20,
 
   // Maximum colors to request from ColorThief (extract many, then select best)
-  // Higher value = better chance of capturing minority accent colors
   MAX_EXTRACTION_COUNT: 60,
 
   // Minimum saturation to be considered a "colorful" color (0-1)
-  // Lowered to include muted tones like Wes Anderson sky colors
   MIN_SATURATION_COLORFUL: 0.08,
 
   // Bonus weight for saturated colors in selection (1.0 = no bonus)
-  // Reduced to avoid penalizing muted accent colors
   SATURATION_BONUS: 1.0,
 
   // Minimum distance between selected colors (lower = more similar colors allowed)
@@ -43,41 +39,26 @@ const CONFIG = {
 
   // Enable debug logging (set to false for production)
   DEBUG: false,
+
+  // Grid sampling configuration
+  GRID_COLS: 10,
+  GRID_ROWS: 8,
+  DARK_PIXEL_THRESHOLD: 25,
+  BRIGHT_PIXEL_THRESHOLD: 245,
+  DARK_RATIO_CUTOFF: 0.7,
+
+  // Sky sampling configuration
+  SKY_START_Y_RATIO: 0.15,
+  SKY_END_Y_RATIO: 0.35,
 };
 
 /**
- * Debug logger - only logs when CONFIG.DEBUG is true
- * Use logger.log() instead of console.log() for debug messages
+ * Debug logger
  */
 const logger = {
   log: (...args) => CONFIG.DEBUG && console.log("[VibePalette]", ...args),
   warn: (...args) => CONFIG.DEBUG && console.warn("[VibePalette]", ...args),
-  error: (...args) => console.error("[VibePalette]", ...args), // Always log errors
-};
-
-/**
- * ============================================
- * UTILITY: Memoization Helper
- * ============================================
- * Caches function results to avoid redundant calculations.
- * Especially useful for rgbToHsl which is called frequently with same values.
- */
-const memoize = (fn, maxCacheSize = 500) => {
-  const cache = new Map();
-  return (...args) => {
-    const key = args.join(",");
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
-    const result = fn(...args);
-    // Limit cache size to prevent memory issues
-    if (cache.size >= maxCacheSize) {
-      const firstKey = cache.keys().next().value;
-      cache.delete(firstKey);
-    }
-    cache.set(key, result);
-    return result;
-  };
+  error: (...args) => console.error("[VibePalette]", ...args),
 };
 
 /**
@@ -108,7 +89,7 @@ const DOM = {
 
 /**
  * ============================================
- * SHARED RESOURCES - Optimized for performance
+ * SHARED RESOURCES
  * ============================================
  */
 const sharedCanvas =
@@ -116,113 +97,7 @@ const sharedCanvas =
 const sharedCtx = sharedCanvas
   ? sharedCanvas.getContext("2d", { willReadFrequently: true })
   : null;
-
-/**
- * ============================================
- * COLOR THIEF INSTANCE
- * ============================================
- */
-const colorThief = new ColorThief();
-
-/**
- * ============================================
- * SETTINGS STATE - User preferences
- * ============================================
- */
-const SETTINGS = {
-  colorCount: 10,
-  colorFormat: "hex", // 'hex', 'rgb', or 'hsl'
-  exportFormat: "png", // 'png', 'css', or 'json'
-  showHexInExport: true,
-  theme: "system", // 'system', 'light', or 'dark'
-};
-
-/**
- * Load settings from Chrome storage
- */
-async function loadSettings() {
-  try {
-    const stored = await chrome.storage.sync.get(["vibepaletteSettings"]);
-    if (stored && stored.vibepaletteSettings) {
-      Object.assign(SETTINGS, stored.vibepaletteSettings);
-    }
-  } catch (error) {
-    logger.warn("Could not load settings - using defaults:", error);
-  }
-}
-
-/**
- * Save settings to Chrome storage
- */
-async function saveSettings() {
-  try {
-    await chrome.storage.sync.set({ vibepaletteSettings: SETTINGS });
-  } catch (error) {
-    logger.warn("Could not save settings:", error);
-  }
-}
-
-/**
- * Apply current settings to UI elements
- */
-function applySettingsToUI() {
-  // Color count slider
-  if (DOM.colorCountSlider) {
-    DOM.colorCountSlider.value = SETTINGS.colorCount;
-  }
-  if (DOM.colorCountValue) {
-    DOM.colorCountValue.textContent = SETTINGS.colorCount;
-  }
-
-  // Color format radio buttons
-  const formatRadio = document.querySelector(
-    `input[name="color-format"][value="${SETTINGS.colorFormat}"]`,
-  );
-  if (formatRadio) {
-    formatRadio.checked = true;
-  }
-
-  // Export format radio buttons
-  const exportRadio = document.querySelector(
-    `input[name="export-format"][value="${SETTINGS.exportFormat}"]`,
-  );
-  if (exportRadio) {
-    exportRadio.checked = true;
-  }
-
-  // Update image export options visibility
-  const imageExportOptions = document.getElementById("image-export-options");
-  if (imageExportOptions) {
-    imageExportOptions.style.display =
-      SETTINGS.exportFormat === "png" ? "block" : "none";
-  }
-
-  // Export options checkbox
-  if (DOM.showHexInExport) {
-    DOM.showHexInExport.checked = SETTINGS.showHexInExport;
-  }
-
-  // Theme radio buttons
-  const themeRadio = document.querySelector(
-    `input[name="theme"][value="${SETTINGS.theme}"]`,
-  );
-  if (themeRadio) {
-    themeRadio.checked = true;
-  }
-  applyTheme();
-}
-
-/**
- * Apply theme to body - Optimized for Wes Anderson Mode
- */
-function applyTheme() {
-  document.body.classList.remove("theme-light", "theme-dark");
-  if (SETTINGS.theme === "light") {
-    document.body.classList.add("theme-light");
-  } else if (SETTINGS.theme === "dark") {
-    document.body.classList.add("theme-dark");
-  }
-}
+const colorThief = typeof ColorThief !== "undefined" ? new ColorThief() : null;
 
 /**
  * ============================================
@@ -230,525 +105,40 @@ function applyTheme() {
  * ============================================
  */
 let currentPalette = [];
-let cachedFilteredPalette = []; // Full palette for re-selection when count changes
-let paletteHistory = []; // History of recent palettes (max 5)
-const MAX_HISTORY_SIZE = 5;
-
-/**
- * Load palette history from Chrome storage
- */
-async function loadPaletteHistory() {
-  try {
-    const stored = await chrome.storage.local.get(["vibepaletteHistory"]);
-    if (stored && stored.vibepaletteHistory) {
-      paletteHistory = stored.vibepaletteHistory;
-    }
-  } catch (error) {
-    logger.warn("Could not load palette history - using empty history:", error);
-    paletteHistory = [];
-  }
-}
-
-/**
- * Save current palette to history
- */
-async function savePaletteToHistory() {
-  if (currentPalette.length === 0) return;
-
-  // Create history entry with timestamp and thumbnail colors
-  const entry = {
-    timestamp: Date.now(),
-    colors: currentPalette.slice(0, 5), // Store first 5 colors as preview
-  };
-
-  // Add to beginning of history
-  paletteHistory.unshift(entry);
-
-  // Limit history size
-  if (paletteHistory.length > MAX_HISTORY_SIZE) {
-    paletteHistory = paletteHistory.slice(0, MAX_HISTORY_SIZE);
-  }
-
-  // Save to storage
-  try {
-    await chrome.storage.local.set({ vibepaletteHistory: paletteHistory });
-  } catch (error) {
-    logger.warn("Could not save palette history:", error);
-  }
-}
+let cachedFilteredPalette = [];
 
 /**
  * ============================================
- * UTILITY FUNCTIONS
+ * UI UTILITIES
  * ============================================
  */
 
-/**
- * Converts RGB values to a Hex color string.
- * @param {number} r - Red value (0-255)
- * @param {number} g - Green value (0-255)
- * @param {number} b - Blue value (0-255)
- * @returns {string} Hex color string (e.g., "#AABBCC")
- */
-function rgbToHex(r, g, b) {
-  const toHex = (n) => n.toString(16).padStart(2, "0");
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
-}
-
-/**
- * Converts RGB values to an RGB string.
- * @param {number} r - Red value (0-255)
- * @param {number} g - Green value (0-255)
- * @param {number} b - Blue value (0-255)
- * @returns {string} RGB string (e.g., "rgb(170, 187, 204)")
- */
-function rgbToRgbString(r, g, b) {
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-/**
- * Converts RGB values to an HSL string.
- * @param {number} r - Red value (0-255)
- * @param {number} g - Green value (0-255)
- * @param {number} b - Blue value (0-255)
- * @returns {string} HSL string (e.g., "hsl(210, 25%, 73%)")
- */
-function rgbToHslString(r, g, b) {
-  const hsl = rgbToHsl(r, g, b);
-  return `hsl(${Math.round(hsl.h)}, ${Math.round(hsl.s * 100)}%, ${Math.round(hsl.l * 100)}%)`;
-}
-
-/**
- * Formats a color based on current settings.
- * @param {number[]} rgb - Array of [r, g, b] values
- * @returns {string} Formatted color string
- */
-function formatColor(rgb) {
-  switch (SETTINGS.colorFormat) {
-    case "rgb":
-      return rgbToRgbString(rgb[0], rgb[1], rgb[2]);
-    case "hsl":
-      return rgbToHslString(rgb[0], rgb[1], rgb[2]);
-    case "hex":
-    default:
-      return rgbToHex(rgb[0], rgb[1], rgb[2]);
-  }
-}
-
-/**
- * Gets a human-readable color name based on HSL analysis.
- * @param {number[]} rgb - Array of [r, g, b] values
- * @returns {string} Color name (e.g., "Deep Red", "Light Sky Blue")
- */
-function getColorName(rgb) {
-  const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
-  const h = hsl.h;
-  const s = hsl.s;
-  const l = hsl.l;
-
-  // Handle achromatic colors (very low saturation)
-  if (s < 0.1) {
-    if (l < 0.15) return "Black";
-    if (l < 0.3) return "Charcoal";
-    if (l < 0.45) return "Dark Gray";
-    if (l < 0.6) return "Gray";
-    if (l < 0.75) return "Silver";
-    if (l < 0.9) return "Light Gray";
-    return "White";
-  }
-
-  // Get base hue name
-  let hueName;
-  if (h < 15 || h >= 345) hueName = "Red";
-  else if (h < 30) hueName = "Vermilion";
-  else if (h < 45) hueName = "Orange";
-  else if (h < 60) hueName = "Amber";
-  else if (h < 75) hueName = "Yellow";
-  else if (h < 105) hueName = "Lime";
-  else if (h < 135) hueName = "Green";
-  else if (h < 165) hueName = "Teal";
-  else if (h < 195) hueName = "Cyan";
-  else if (h < 225) hueName = "Sky Blue";
-  else if (h < 255) hueName = "Blue";
-  else if (h < 285) hueName = "Indigo";
-  else if (h < 315) hueName = "Purple";
-  else hueName = "Magenta";
-
-  // Add lightness modifier
-  let prefix = "";
-  if (l < 0.25) prefix = "Deep ";
-  else if (l < 0.4) prefix = "Dark ";
-  else if (l > 0.75) prefix = "Light ";
-  else if (l > 0.6 && s < 0.4) prefix = "Pale ";
-
-  // Add saturation modifier for muted colors
-  if (s < 0.3 && l >= 0.25 && l <= 0.75) {
-    prefix = "Muted ";
-  }
-
-  return prefix + hueName;
-}
-
-/**
- * Calculate relative luminance of a color (WCAG 2.1 formula)
- * @param {number[]} rgb - Array of [r, g, b] values
- * @returns {number} Relative luminance (0-1)
- */
-function getRelativeLuminance(rgb) {
-  const [r, g, b] = rgb.map((val) => {
-    const sRGB = val / 255;
-    return sRGB <= 0.03928
-      ? sRGB / 12.92
-      : Math.pow((sRGB + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/**
- * Calculate contrast ratio between two colors (WCAG 2.1)
- * @param {number[]} rgb1 - First color [r, g, b]
- * @param {number[]} rgb2 - Second color [r, g, b]
- * @returns {number} Contrast ratio (1-21)
- */
-function getContrastRatio(rgb1, rgb2) {
-  const lum1 = getRelativeLuminance(rgb1);
-  const lum2 = getRelativeLuminance(rgb2);
-  const lighter = Math.max(lum1, lum2);
-  const darker = Math.min(lum1, lum2);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-/**
- * Get WCAG compliance level for contrast ratio
- * @param {number} ratio - Contrast ratio
- * @returns {object} {level: string, passes: boolean}
- */
-function getWCAGLevel(ratio) {
-  if (ratio >= 7) return { level: "AAA", passes: true, color: "#22c55e" };
-  if (ratio >= 4.5) return { level: "AA", passes: true, color: "#84cc16" };
-  if (ratio >= 3) return { level: "AA-L", passes: true, color: "#facc15" }; // Large text only
-  return { level: "Fail", passes: false, color: "#ef4444" };
-}
-
-/**
- * Converts RGB values to HSL.
- * @param {number} r - Red value (0-255)
- * @param {number} g - Green value (0-255)
- * @param {number} b - Blue value (0-255)
- * @returns {{h: number, s: number, l: number}} HSL values (h: 0-360, s: 0-1, l: 0-1)
- */
-const rgbToHsl = memoize((r, g, b) => {
-  r /= 255;
-  g /= 255;
-  b /= 255;
-  const max = Math.max(r, g, b),
-    min = Math.min(r, g, b);
-  let h,
-    s,
-    l = (max + min) / 2;
-
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-        break;
-      case g:
-        h = ((b - r) / d + 2) / 6;
-        break;
-      case b:
-        h = ((r - g) / d + 4) / 6;
-        break;
-      default:
-        h = 0;
-    }
-    h *= 360;
-  }
-  return { h, s, l };
-});
-
-/**
- * Calculates the color distance between two RGB colors.
- * @param {number[]} c1 - First color [r, g, b]
- * @param {number[]} c2 - Second color [r, g, b]
- * @returns {number} Distance value
- */
-function colorDistance(c1, c2) {
-  // Weighted Euclidean distance (human eye is more sensitive to green)
-  const rDiff = c1[0] - c2[0];
-  const gDiff = c1[1] - c2[1];
-  const bDiff = c1[2] - c2[2];
-  return Math.sqrt(2 * rDiff * rDiff + 4 * gDiff * gDiff + 3 * bDiff * bDiff);
-}
-
-/**
- * Checks if a color is too close to white.
- * @param {number[]} rgb - Array of [r, g, b] values
- * @returns {boolean} True if color is near-white
- */
-function isNearWhite(rgb) {
-  return (
-    rgb[0] > CONFIG.WHITE_THRESHOLD &&
-    rgb[1] > CONFIG.WHITE_THRESHOLD &&
-    rgb[2] > CONFIG.WHITE_THRESHOLD
-  );
-}
-
-/**
- * Checks if a color is too close to black.
- * @param {number[]} rgb - Array of [r, g, b] values
- * @returns {boolean} True if color is near-black
- */
-function isNearBlack(rgb) {
-  return (
-    rgb[0] < CONFIG.BLACK_THRESHOLD &&
-    rgb[1] < CONFIG.BLACK_THRESHOLD &&
-    rgb[2] < CONFIG.BLACK_THRESHOLD
-  );
-}
-
-/**
- * Filters out near-white and near-black colors from a palette.
- * @param {number[][]} palette - Array of [r, g, b] color arrays
- * @returns {number[][]} Filtered palette
- */
-function filterExtremeColors(palette) {
-  return palette.filter((color) => !isNearWhite(color) && !isNearBlack(color));
-}
-
-/**
- * Selects a diverse palette with GUARANTEED representation from each hue family.
- *
- * Critical insight: Grouping by "warm" vs "cool" is too coarse - greens dominate over blues
- * because both are "cool". Instead, we use 8 specific hue buckets and guarantee at least
- * one color from each bucket that contains colors.
- *
- * Algorithm:
- * 1. Bucket all colors into 8 hue families (red, orange, yellow, green, teal, blue, purple, neutral)
- * 2. FIRST PASS: Pick the single best color from EACH non-empty bucket (guarantees coverage)
- * 3. SECOND PASS: Fill remaining slots by maximizing color distance
- * 4. Sort by hue for visual consistency
- *
- * This ensures that if ANY blue exists in the image, it WILL be in the final palette,
- * even if greens are 10x more prevalent.
- *
- * @param {number[][]} colors - Raw palette from ColorThief
- * @param {number} count - Number of colors to select
- * @returns {number[][]} Diverse palette
- */
-function selectDiversePalette(colors, count) {
-  if (colors.length <= count) return colors;
-
-  // Convert to HSL and annotate with hue family
-  const annotated = colors.map((rgb) => {
-    const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
-    return {
-      rgb,
-      hsl,
-      family: getColorFamily(hsl),
-    };
-  });
-
-  // Define the 9 hue families in spectrum order (matches getColorFamily)
-  const HUE_FAMILIES = [
-    "red",
-    "orange",
-    "yellow",
-    "green",
-    "teal",
-    "blue",
-    "purple",
-    "magenta",
-    "neutral",
-  ];
-
-  // Bucket colors by family
-  const buckets = {};
-  HUE_FAMILIES.forEach((family) => (buckets[family] = []));
-
-  annotated.forEach((color) => {
-    buckets[color.family].push(color);
-  });
-
-  // Sort each bucket by "visual quality" score
-  // Prefer: medium lightness (0.35-0.55), decent saturation, not too dark/light
-  const scoreColor = (c) => {
-    const lightnessScore = 1 - Math.pow(Math.abs(c.hsl.l - 0.45) * 2, 1.5);
-    const saturationScore = Math.min(c.hsl.s * 1.2, 1); // Cap at 1
-    const notTooExtreme = c.hsl.l > 0.15 && c.hsl.l < 0.85 ? 1 : 0.5;
-    return lightnessScore * 0.4 + saturationScore * 0.4 + notTooExtreme * 0.2;
-  };
-
-  Object.values(buckets).forEach((bucket) => {
-    bucket.sort((a, b) => scoreColor(b) - scoreColor(a));
-  });
-
-  const selected = [];
-  const usedBuckets = [];
-
-  // === PHASE 1: Guarantee one color from each non-empty hue family ===
-  // This is the key insight: EVERY hue family gets representation before any family gets a second color
-
-  for (const family of HUE_FAMILIES) {
-    if (selected.length >= count) break;
-
-    const bucket = buckets[family];
-    if (bucket.length === 0) continue;
-
-    // Find the best color from this bucket that's different enough from already selected
-    for (const candidate of bucket) {
-      const isDifferentEnough = selected.every(
-        (s) => colorDistance(s.rgb, candidate.rgb) > CONFIG.MIN_COLOR_DISTANCE,
-      );
-
-      if (isDifferentEnough) {
-        selected.push(candidate);
-        usedBuckets.push(family);
-        logger.log(
-          `✓ ${family}: ${rgbToHex(candidate.rgb[0], candidate.rgb[1], candidate.rgb[2])}`,
-        );
-        break;
-      }
-    }
-  }
-
-  logger.log(
-    `Phase 1: Selected ${selected.length} colors from ${usedBuckets.length} hue families: [${usedBuckets.join(", ")}]`,
-  );
-
-  // === PHASE 2: Fill remaining slots by maximizing distance ===
-  // Now that each hue family is represented, fill the rest with maximum diversity
-
-  const remaining = annotated.filter((c) => !selected.includes(c));
-
-  while (selected.length < count && remaining.length > 0) {
-    // Find the color most different from all selected colors
-    let bestCandidate = null;
-    let bestMinDistance = -1;
-
-    for (let i = 0; i < remaining.length; i++) {
-      const candidate = remaining[i];
-      const minDistToSelected = Math.min(
-        ...selected.map((s) => colorDistance(s.rgb, candidate.rgb)),
-      );
-
-      if (minDistToSelected > bestMinDistance) {
-        bestMinDistance = minDistToSelected;
-        bestCandidate = { index: i, color: candidate };
-      }
-    }
-
-    if (bestCandidate && bestMinDistance > CONFIG.MIN_COLOR_DISTANCE * 0.5) {
-      selected.push(bestCandidate.color);
-      remaining.splice(bestCandidate.index, 1);
-    } else {
-      // No more sufficiently different colors
-      break;
-    }
-  }
-
-  logger.log(
-    `Phase 2: Total ${selected.length} colors after distance-based fill`,
-  );
-
-  // === PHASE 3: Sort by hue for visual consistency ===
-  selected.sort((a, b) => {
-    // Neutrals go to the end
-    if (a.family === "neutral" && b.family !== "neutral") return 1;
-    if (b.family === "neutral" && a.family !== "neutral") return -1;
-    // Sort by hue
-    return a.hsl.h - b.hsl.h;
-  });
-
-  return selected.map((item) => item.rgb);
-}
-
-/**
- * Determines the color family (hue group name) for visualization/debugging.
- * @param {object} hsl - HSL object with h, s, l properties
- * @returns {string} Family name
- */
-function getColorFamily(hsl) {
-  if (hsl.s < CONFIG.MIN_SATURATION_COLORFUL) return "neutral";
-
-  const h = hsl.h;
-  if (h < 15 || h >= 345) return "red";
-  if (h < 45) return "orange";
-  if (h < 70) return "yellow";
-  if (h < 150) return "green";
-  if (h < 200) return "teal"; // Split out teal (like Wes Anderson skies)
-  if (h < 260) return "blue";
-  if (h < 290) return "purple";
-  if (h < 345) return "magenta";
-  return "red";
-}
-
-/**
- * Determines whether a color is warm, cool, or neutral.
- * @param {object} hsl - HSL object with h, s, l properties
- * @returns {string} 'warm', 'cool', or 'neutral'
- */
-function getColorTemperature(hsl) {
-  // Very low saturation = neutral (grays)
-  if (hsl.s < CONFIG.MIN_SATURATION_COLORFUL) return "neutral";
-
-  const h = hsl.h;
-
-  // Warm: reds, oranges, yellows, warm purples/magentas (0-70, 320-360)
-  if ((h >= 0 && h < 70) || (h >= 320 && h < 360)) return "warm";
-
-  // Cool: greens through blues to cool purples (70-320)
-  return "cool";
-}
-
-/**
- * Shows a cinematic toast notification.
- * @param {string} message - Message to display
- */
 function showToast(message = "Palette Updated") {
   const toastText = DOM.toast.querySelector(".toast-text");
-  if (toastText) {
-    toastText.textContent = message;
-  }
+  if (toastText) toastText.textContent = message;
 
   DOM.toast.classList.remove("hidden");
   DOM.toast.classList.add("show");
 
   setTimeout(() => {
     DOM.toast.classList.remove("show");
-    setTimeout(() => {
-      DOM.toast.classList.add("hidden");
-    }, 250);
+    setTimeout(() => DOM.toast.classList.add("hidden"), 250);
   }, CONFIG.TOAST_DURATION);
 }
 
-/**
- * Copies text to clipboard using the Clipboard API.
- * @param {string} text - Text to copy
- * @returns {Promise<boolean>} True if successful
- */
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (err) {
-    console.error("Failed to copy to clipboard:", err);
+    logger.error("Failed to copy to clipboard:", err);
     return false;
   }
 }
 
-/**
- * ============================================
- * UI STATE MANAGEMENT
- * ============================================
- */
+// Make copyToClipboard global for other modules
+window.copyToClipboard = copyToClipboard;
 
-/**
- * Shows the loading state.
- */
 function showLoadingState() {
   DOM.imageContainer.classList.add("hidden");
   DOM.paletteContainer.classList.add("hidden");
@@ -756,9 +146,6 @@ function showLoadingState() {
   DOM.loading.classList.remove("hidden");
 }
 
-/**
- * Shows the result state (screenshot + palette).
- */
 function showResultState() {
   DOM.loading.classList.add("hidden");
   DOM.errorState.classList.add("hidden");
@@ -766,37 +153,30 @@ function showResultState() {
   DOM.paletteContainer.classList.remove("hidden");
 }
 
-/**
- * Shows the error state.
- * @param {string} message - Error message to display
- */
 function showErrorState(message = "Cannot capture this page") {
   DOM.loading.classList.add("hidden");
   DOM.imageContainer.classList.add("hidden");
   DOM.paletteContainer.classList.add("hidden");
   DOM.errorState.classList.remove("hidden");
-
   const errorText = DOM.errorState.querySelector(".error-text");
-  if (errorText) {
-    errorText.textContent = message;
-  }
+  if (errorText) errorText.textContent = message;
 }
 
 /**
  * ============================================
- * COLOR PALETTE RENDERING
+ * PALETTE RENDERING
  * ============================================
  */
 
-/**
- * Creates a single color block element.
- * @param {number[]} rgb - Array of [r, g, b] values
- * @returns {HTMLElement} Color block element
- */
 function createColorBlock(rgb) {
-  const hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
-  const displayValue = formatColor(rgb);
-  const colorName = getColorName(rgb);
+  const ColorUtils = window.ColorUtils;
+  const Settings = window.Settings;
+  const hex = ColorUtils.rgbToHex(rgb[0], rgb[1], rgb[2]);
+  const displayValue = ColorUtils.formatColor(
+    rgb,
+    Settings.SETTINGS.colorFormat,
+  );
+  const colorName = ColorUtils.getColorName(rgb);
 
   const block = document.createElement("div");
   block.className = "color-block";
@@ -807,12 +187,10 @@ function createColorBlock(rgb) {
   swatch.className = "color-swatch";
   swatch.style.backgroundColor = hex;
 
-  // Color name label (shown on hover)
   const nameLabel = document.createElement("span");
   nameLabel.className = "color-name";
   nameLabel.textContent = colorName;
 
-  // Color value label
   const valueLabel = document.createElement("span");
   valueLabel.className = "color-hex";
   valueLabel.textContent = displayValue;
@@ -822,26 +200,21 @@ function createColorBlock(rgb) {
   block.appendChild(valueLabel);
 
   block.addEventListener("click", async () => {
-    const currentDisplayValue = formatColor(rgb);
+    const ColorUtils = window.ColorUtils;
+    const Settings = window.Settings;
+    const currentDisplayValue = ColorUtils.formatColor(
+      rgb,
+      Settings.SETTINGS.colorFormat,
+    );
     const success = await copyToClipboard(currentDisplayValue);
-    if (success) {
-      showToast(`${currentDisplayValue} copied!`);
-    } else {
-      showToast("Copy failed");
-    }
+    if (success) showToast(`${currentDisplayValue} copied!`);
   });
 
   return block;
 }
 
-/**
- * Renders the color palette to the grid.
- * @param {number[][]} palette - Array of [r, g, b] color arrays
- */
 function renderPalette(palette) {
-  // Store palette for export
   currentPalette = palette;
-
   DOM.colorGrid.innerHTML = "";
   palette.forEach((color) => {
     const block = createColorBlock(color);
@@ -849,742 +222,125 @@ function renderPalette(palette) {
   });
 }
 
-/**
- * ============================================
- * EXPORT FUNCTIONALITY
- * ============================================
- */
-
-/**
- * Main export function - dispatches to appropriate format
- */
-function exportPalette() {
-  if (currentPalette.length === 0) {
-    showToast("No palette to export");
-    return;
-  }
-
-  switch (SETTINGS.exportFormat) {
-    case "css":
-      exportAsCSS();
-      break;
-    case "json":
-      exportAsJSON();
-      break;
-    case "png":
-    default:
-      exportPaletteImage();
-      break;
-  }
-}
-
-/**
- * Generate a shareable URL for the current palette
- */
-async function sharePalette() {
-  if (currentPalette.length === 0) {
-    showToast("No palette to share");
-    return;
-  }
-
-  // Create Coolors.co compatible URL format
-  const hexColors = currentPalette.map((rgb) =>
-    rgbToHex(rgb[0], rgb[1], rgb[2]).replace("#", ""),
-  );
-  const coolorsUrl = `https://coolors.co/${hexColors.join("-")}`;
-
-  // Also create a simple URL with query param
-  const encodedColors = hexColors.join(",");
-  const simpleUrl = `https://coolors.co/palette/${encodedColors}`;
-
-  // Copy to clipboard
-  const success = await copyToClipboard(coolorsUrl);
-  if (success) {
-    showToast("Palette URL copied!");
-  }
-
-  return coolorsUrl;
-}
-
-/**
- * Converts a color name to a valid CSS variable name.
- * @param {string} name - Human-readable color name (e.g., "Deep Red", "Sky Blue")
- * @returns {string} CSS-safe variable name (e.g., "deep-red", "sky-blue")
- */
-function colorNameToVarName(name) {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-}
-
-/**
- * Generates unique CSS variable names for the palette.
- * If there are duplicate color names, appends a number suffix.
- * @param {number[][]} palette - Array of [r, g, b] colors
- * @returns {string[]} Array of unique CSS variable names
- */
-function generateCSSVarNames(palette) {
-  const nameCount = {};
-  const varNames = [];
-
-  palette.forEach((rgb) => {
-    const colorName = getColorName(rgb);
-    const baseName = colorNameToVarName(colorName);
-
-    // Track occurrences
-    if (!nameCount[baseName]) {
-      nameCount[baseName] = 0;
-    }
-    nameCount[baseName]++;
-  });
-
-  // Reset for second pass
-  const nameUsed = {};
-
-  palette.forEach((rgb) => {
-    const colorName = getColorName(rgb);
-    const baseName = colorNameToVarName(colorName);
-
-    if (!nameUsed[baseName]) {
-      nameUsed[baseName] = 0;
-    }
-    nameUsed[baseName]++;
-
-    // Add suffix only if there are duplicates
-    if (nameCount[baseName] > 1) {
-      varNames.push(`${baseName}-${nameUsed[baseName]}`);
-    } else {
-      varNames.push(baseName);
+function updateColorLabels() {
+  const ColorUtils = window.ColorUtils;
+  const Settings = window.Settings;
+  const blocks = document.querySelectorAll(".color-block");
+  blocks.forEach((block) => {
+    const rgbData = block.getAttribute("data-rgb");
+    if (rgbData) {
+      try {
+        const rgb = JSON.parse(rgbData);
+        const label = block.querySelector(".color-hex");
+        if (label) {
+          const displayValue = ColorUtils.formatColor(
+            rgb,
+            Settings.SETTINGS.colorFormat,
+          );
+          label.textContent = displayValue;
+          block.setAttribute("title", `Click to copy ${displayValue}`);
+        }
+      } catch (err) {
+        logger.error("Failed to parse RGB data:", err);
+      }
     }
   });
-
-  return varNames;
-}
-
-/**
- * Export palette as CSS custom properties with semantic names.
- * Uses color analysis to generate meaningful variable names.
- */
-async function exportAsCSS() {
-  const varNames = generateCSSVarNames(currentPalette);
-  const lines = ["/* VibePalette - Extracted Colors */"];
-  lines.push(":root {");
-
-  currentPalette.forEach((rgb, index) => {
-    const colorValue = formatColor(rgb);
-    const varName = varNames[index];
-    lines.push(`  --${varName}: ${colorValue};`);
-  });
-
-  lines.push("}");
-
-  // Also add numbered fallbacks for predictable access
-  lines.push("");
-  lines.push("/* Numbered aliases for programmatic access */");
-  lines.push(":root {");
-  currentPalette.forEach((rgb, index) => {
-    const colorValue = formatColor(rgb);
-    lines.push(`  --palette-${index + 1}: ${colorValue};`);
-  });
-  lines.push("}");
-
-  const css = lines.join("\n");
-
-  // Copy to clipboard for quick use
-  const copied = await copyToClipboard(css);
-
-  // Also download as file
-  downloadTextFile(css, `vibepalette-${Date.now()}.css`, "text/css");
-
-  if (copied) {
-    showToast("CSS copied & downloaded!");
-  } else {
-    showToast("CSS exported!");
-  }
-}
-
-/**
- * Export palette as JSON
- */
-function exportAsJSON() {
-  const colors = currentPalette.map((rgb, index) => ({
-    index: index + 1,
-    hex: rgbToHex(rgb[0], rgb[1], rgb[2]),
-    rgb: { r: rgb[0], g: rgb[1], b: rgb[2] },
-    hsl: rgbToHsl(rgb[0], rgb[1], rgb[2]),
-  }));
-
-  const json = JSON.stringify(
-    { colors, exportedAt: new Date().toISOString() },
-    null,
-    2,
-  );
-  downloadTextFile(json, `vibepalette-${Date.now()}.json`, "application/json");
-  showToast("JSON exported!");
-}
-
-/**
- * Download a text file
- */
-function downloadTextFile(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.download = filename;
-  link.href = url;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Generates and downloads a cinematic Wes Anderson-style palette image.
- * Multi-Row Layout: Colors wrap into multiple rows to ensure text legibility.
- */
-async function exportPaletteImage() {
-  if (!DOM.previewImage.src || currentPalette.length === 0) {
-    showToast("No collection to export");
-    return;
-  }
-
-  // Ensure fonts are loaded before drawing to canvas
-  await document.fonts.ready;
-
-  const WA_CREAM = "#FDF5E6";
-  const WA_BROWN = "#5D4037";
-  const numColors = currentPalette.length;
-
-  // Create canvas
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  // Get image dimensions
-  const img = DOM.previewImage;
-  const imgW = img.naturalWidth;
-  const imgH = img.naturalHeight;
-
-  // --- SMART BALANCED MULTI-ROW LAYOUT ---
-  // Goal: distribute colors evenly to avoid unbalanced rows like 7-7-1
-  // For 15 colors: 5-5-5 is better than 7-7-1
-  // For 10 colors: 5-5 is better than 7-3
-
-  const MAX_COLS = 7;
-  let colsPerRow;
-  let numRows;
-
-  // Find optimal column count that creates balanced rows
-  if (numColors <= MAX_COLS) {
-    // Single row
-    colsPerRow = numColors;
-    numRows = 1;
-  } else {
-    // Try to find a divisor or near-even split
-    // Prefer 2-3 rows with similar counts
-    numRows = Math.ceil(numColors / MAX_COLS);
-    colsPerRow = Math.ceil(numColors / numRows);
-  }
-
-  const padding = Math.floor(imgW * 0.06);
-  const titleSpace = Math.floor(imgW * 0.12);
-  const blockGap = 12;
-
-  // Block width based on fitting colsPerRow in imgW
-  const blockWidth = Math.floor(
-    (imgW - (colsPerRow - 1) * blockGap) / colsPerRow,
-  );
-  const blockHeight = Math.floor(blockWidth * 1.2);
-
-  // Space for labels below each row - MUCH bigger for massive fonts
-  const labelSpace = 150;
-  const rowHeight = blockHeight + labelSpace;
-
-  const footerSpace = 60;
-
-  // Canvas dimensions
-  const canvasWidth = imgW + padding * 2;
-  const canvasHeight =
-    imgH + padding + titleSpace + numRows * rowHeight + footerSpace;
-
-  canvas.width = canvasWidth;
-  canvas.height = canvasHeight;
-
-  // 1. Background
-  ctx.fillStyle = WA_CREAM;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // 2. Double Frame
-  ctx.strokeStyle = WA_BROWN;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
-  ctx.lineWidth = 3;
-  ctx.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
-
-  // 3. Main Clip/Screenshot
-  ctx.drawImage(img, padding, padding, imgW, imgH);
-  ctx.lineWidth = 1;
-  ctx.strokeRect(padding, padding, imgW, imgH);
-
-  // 4. Title Card
-  ctx.fillStyle = WA_BROWN;
-  ctx.textAlign = "center";
-
-  const titleFontSize = Math.max(28, Math.floor(imgW * 0.04));
-  ctx.font = `italic ${titleFontSize}px "Poiret One", cursive, serif`;
-  ctx.fillText(
-    "A VibePalette Collection",
-    canvas.width / 2,
-    padding + imgH + titleSpace * 0.5,
-  );
-
-  // Divider line
-  ctx.beginPath();
-  ctx.moveTo(canvas.width * 0.3, padding + imgH + titleSpace * 0.7);
-  ctx.lineTo(canvas.width * 0.7, padding + imgH + titleSpace * 0.7);
-  ctx.stroke();
-
-  // 5. Color Blocks with Metadata (MULTI-ROW)
-  const paletteStartY = padding + imgH + titleSpace;
-
-  // Fixed, MASSIVE font sizes for guaranteed legibility
-  const nameFontSize = 48;
-  const hexFontSize = 36;
-
-  currentPalette.forEach((rgb, i) => {
-    const row = Math.floor(i / colsPerRow);
-    const col = i % colsPerRow;
-
-    // Calculate how many items are in this row (last row might be partial)
-    const itemsInThisRow = Math.min(colsPerRow, numColors - row * colsPerRow);
-
-    // Center the row
-    const rowWidth =
-      itemsInThisRow * blockWidth + (itemsInThisRow - 1) * blockGap;
-    const rowStartX = (canvasWidth - rowWidth) / 2;
-
-    const x = rowStartX + col * (blockWidth + blockGap);
-    const y = paletteStartY + row * rowHeight;
-
-    const hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
-    const colorName = getColorName(rgb);
-
-    // Block
-    ctx.fillStyle = hex;
-    ctx.fillRect(x, y, blockWidth, blockHeight);
-    ctx.strokeStyle = WA_BROWN;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, blockWidth, blockHeight);
-
-    // Labels
-    ctx.fillStyle = WA_BROWN;
-
-    // Color Name
-    ctx.font = `bold ${nameFontSize}px "Didact Gothic", sans-serif`;
-    let displayName = colorName.toUpperCase();
-    // Truncate if wider than block
-    while (
-      ctx.measureText(displayName).width > blockWidth &&
-      displayName.length > 3
-    ) {
-      displayName = displayName.slice(0, -1);
-    }
-    if (displayName !== colorName.toUpperCase()) displayName += "..";
-
-    ctx.fillText(displayName, x + blockWidth / 2, y + blockHeight + 60);
-
-    // HEX Code
-    ctx.font = `${hexFontSize}px "Courier New", monospace`;
-    ctx.fillText(hex, x + blockWidth / 2, y + blockHeight + 110);
-  });
-
-  // 6. Footer Signature
-  ctx.font = `bold 12px "Didact Gothic", sans-serif`;
-  ctx.fillText(
-    `EXTRACTED ${new Date().toLocaleDateString().toUpperCase()} • POS. ${Math.floor(Math.random() * 9000 + 1000)}`,
-    canvas.width / 2,
-    canvas.height - 25,
-  );
-
-  // Download
-  const dataUrl = canvas.toDataURL("image/png");
-  const link = document.createElement("a");
-  link.download = `vibepalette-collector-no${Date.now()}.png`;
-  link.href = dataUrl;
-  link.click();
-
-  showToast("Collection Exported!");
 }
 
 /**
  * ============================================
- * SCREENSHOT CAPTURE & PROCESSING
+ * IMAGE PROCESSING
  * ============================================
  */
 
-/**
- * Extracts colors using GRID-BASED SEMANTIC SAMPLING.
- *
- * THE CORE INSIGHT (from the user):
- * Median-cut algorithms mathematically BLEND colors. When orange dress pixels
- * and blue sky pixels are averaged together, you get muddy olive-green.
- * This destroys the intentional contrast that cinematographers like Wes Anderson create.
- *
- * THE SOLUTION:
- * Divide the image into small grid cells. Each cell is small enough to contain
- * mostly ONE color (sky, dress, railing, etc.). Extract the SINGLE dominant color
- * from each cell. This gives us pure, unblended "spot samples" that preserve
- * the distinct colors human eyes see.
- *
- * @param {HTMLImageElement} img - Image element to extract colors from
- */
 function extractAndRenderColors(img) {
   try {
+    const ColorUtils = window.ColorUtils;
+    const Settings = window.Settings;
     const imgWidth = img.naturalWidth;
     const imgHeight = img.naturalHeight;
 
-    // Use shared canvas for pixel manipulation
     sharedCanvas.width = imgWidth;
     sharedCanvas.height = imgHeight;
     sharedCtx.drawImage(img, 0, 0);
 
-    // === GRID SAMPLING CONFIG ===
-    // Smaller cells = more "semantic" separation (each cell is one object)
-    const GRID_COLS = 10;
-    const GRID_ROWS = 8;
-    const cellWidth = Math.floor(imgWidth / GRID_COLS);
-    const cellHeight = Math.floor(imgHeight / GRID_ROWS);
-
-    const allColors = [];
-
-    // === PHASE 1: Extract dominant color from each grid cell ===
-    logger.log(
-      `Grid sampling: ${GRID_COLS}x${GRID_ROWS} = ${GRID_COLS * GRID_ROWS} cells`,
+    // DELEGATE EXTRACTION TO COLOR-UTILS
+    // This allows simulation testing (without browser).
+    const allColors = ColorUtils.extractPalette(
+      sharedCtx,
+      imgWidth,
+      imgHeight,
+      CONFIG,
     );
 
-    for (let row = 0; row < GRID_ROWS; row++) {
-      for (let col = 0; col < GRID_COLS; col++) {
-        const x = col * cellWidth;
-        const y = row * cellHeight;
+    const deduplicated = ColorUtils.deduplicateColors(allColors, 20);
+    let filtered = ColorUtils.filterExtremeColors(
+      deduplicated,
+      CONFIG.WHITE_THRESHOLD,
+      CONFIG.BLACK_THRESHOLD,
+    );
+    if (filtered.length < Settings.SETTINGS.colorCount) filtered = deduplicated;
 
-        // Get pixel data for this cell
-        const imageData = sharedCtx.getImageData(x, y, cellWidth, cellHeight);
-        const pixels = imageData.data;
-
-        // HUE BUCKETING: Find the best (most saturated) pixel for EACH hue family
-        // This ensures we get the best red AND the best blue, not just whichever is stronger
-        const hueBuckets = {
-          red: { pixel: null, saturation: -1 }, // 0-30, 330-360
-          orange: { pixel: null, saturation: -1 }, // 30-60
-          yellow: { pixel: null, saturation: -1 }, // 60-90
-          green: { pixel: null, saturation: -1 }, // 90-150
-          teal: { pixel: null, saturation: -1 }, // 150-200 (sky colors!)
-          blue: { pixel: null, saturation: -1 }, // 200-260
-          purple: { pixel: null, saturation: -1 }, // 260-330
-          neutral: { pixel: null, saturation: -1 }, // low saturation
-        };
-
-        let darkPixelCount = 0;
-        const DARK_THRESHOLD = 25;
-        const BRIGHT_THRESHOLD = 245;
-
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          const a = pixels[i + 3];
-
-          if (a < 128) continue;
-
-          const brightness = (r + g + b) / 3;
-          if (brightness < DARK_THRESHOLD) {
-            darkPixelCount++;
-            continue;
-          }
-          if (brightness > BRIGHT_THRESHOLD) continue;
-
-          // Calculate HSL inline
-          const max = Math.max(r, g, b);
-          const min = Math.min(r, g, b);
-          const l = (max + min) / 2 / 255;
-          let saturation = 0;
-          let hue = 0;
-
-          if (max !== min) {
-            const d = max - min;
-            saturation = l > 0.5 ? d / (255 * 2 - max - min) : d / (max + min);
-
-            // Calculate hue
-            if (max === r) {
-              hue = ((g - b) / d + (g < b ? 6 : 0)) * 60;
-            } else if (max === g) {
-              hue = ((b - r) / d + 2) * 60;
-            } else {
-              hue = ((r - g) / d + 4) * 60;
-            }
-          }
-
-          // Determine which hue bucket this pixel belongs to
-          let bucketName;
-          if (saturation < 0.1) {
-            bucketName = "neutral";
-          } else if (hue < 30 || hue >= 330) {
-            bucketName = "red";
-          } else if (hue < 60) {
-            bucketName = "orange";
-          } else if (hue < 90) {
-            bucketName = "yellow";
-          } else if (hue < 150) {
-            bucketName = "green";
-          } else if (hue < 200) {
-            bucketName = "teal";
-          } else if (hue < 260) {
-            bucketName = "blue";
-          } else {
-            bucketName = "purple";
-          }
-
-          // Update bucket if this pixel is more saturated than current best
-          const bucket = hueBuckets[bucketName];
-          if (saturation > bucket.saturation) {
-            bucket.saturation = saturation;
-            bucket.pixel = [r, g, b];
-          }
-        }
-
-        // Skip cells that are mostly dark (letterbox regions)
-        const totalPixels = pixels.length / 4;
-        const darkRatio = darkPixelCount / totalPixels;
-        if (darkRatio > 0.7) continue;
-
-        // Add the best color from EACH non-empty hue bucket
-        for (const bucketName in hueBuckets) {
-          const bucket = hueBuckets[bucketName];
-          if (bucket.pixel && bucket.saturation > 0.02) {
-            allColors.push(bucket.pixel);
-          }
-        }
-      }
-    }
-
-    logger.log(`Grid sampling extracted ${allColors.length} cell colors`);
-
-    // === PHASE 2: Also sample corners and edges for accent colors ===
-    // Often the most distinctive colors are at the edges (sky at top, ground at bottom)
-    const cornerSize = Math.floor(Math.min(imgWidth, imgHeight) * 0.1);
-    const corners = [
-      { x: 0, y: 0, name: "top-left" },
-      { x: imgWidth - cornerSize, y: 0, name: "top-right" },
-      { x: 0, y: imgHeight - cornerSize, name: "bottom-left" },
+    cachedFilteredPalette = filtered;
+    const finalPalette = ColorUtils.selectDiversePalette(
+      filtered,
+      Settings.SETTINGS.colorCount,
       {
-        x: imgWidth - cornerSize,
-        y: imgHeight - cornerSize,
-        name: "bottom-right",
+        minSaturationColorful: CONFIG.MIN_SATURATION_COLORFUL,
+        minColorDistance: CONFIG.MIN_COLOR_DISTANCE,
+        logger,
       },
-    ];
-
-    for (const corner of corners) {
-      const imageData = sharedCtx.getImageData(
-        corner.x,
-        corner.y,
-        cornerSize,
-        cornerSize,
-      );
-      const pixels = imageData.data;
-
-      let rSum = 0,
-        gSum = 0,
-        bSum = 0,
-        count = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 3] < 128) continue;
-        rSum += pixels[i];
-        gSum += pixels[i + 1];
-        bSum += pixels[i + 2];
-        count++;
-      }
-
-      if (count > 0) {
-        allColors.push([
-          Math.round(rSum / count),
-          Math.round(gSum / count),
-          Math.round(bSum / count),
-        ]);
-      }
-    }
-
-    // === PHASE 3: Sample the SKY area specifically ===
-    // For letterboxed images, sky is typically 15-35% from top (below black bars)
-    // Use MAX SATURATION selection to get the purest sky blue, not washed-out clouds
-    const skyStartY = Math.floor(imgHeight * 0.15);
-    const skyEndY = Math.floor(imgHeight * 0.35);
-    const skyStripHeight = skyEndY - skyStartY;
-    const skyStripCols = 8;
-    const skyCellWidth = Math.floor(imgWidth / skyStripCols);
-
-    logger.log(
-      `Sky sampling: rows ${skyStartY}-${skyEndY} (max saturation mode)`,
     );
-
-    for (let col = 0; col < skyStripCols; col++) {
-      const x = col * skyCellWidth;
-      const imageData = sharedCtx.getImageData(
-        x,
-        skyStartY,
-        skyCellWidth,
-        skyStripHeight,
-      );
-      const pixels = imageData.data;
-
-      // Find the MOST SATURATED pixel in this sky cell
-      let bestPixel = null;
-      let bestSaturation = -1;
-
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-        const a = pixels[i + 3];
-
-        if (a < 128) continue;
-
-        // Skip very dark and very bright pixels
-        const brightness = (r + g + b) / 3;
-        if (brightness < 30 || brightness > 240) continue;
-
-        // Calculate saturation
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const l = (max + min) / 2 / 255;
-        let saturation = 0;
-        if (max !== min) {
-          const d = (max - min) / 255;
-          saturation =
-            l > 0.5
-              ? d / (2 - max / 255 - min / 255)
-              : d / (max / 255 + min / 255);
-        }
-
-        if (saturation > bestSaturation) {
-          bestSaturation = saturation;
-          bestPixel = [r, g, b];
-        }
-      }
-
-      if (bestPixel && bestSaturation > 0.05) {
-        // Add sky colors with high priority
-        allColors.push(bestPixel);
-        allColors.push(bestPixel);
-        allColors.push(bestPixel);
-        logger.log(
-          `Sky cell ${col}: RGB(${bestPixel.join(", ")}) sat=${bestSaturation.toFixed(2)}`,
-        );
-      }
-    }
-
-    logger.log(`Total colors after all sampling: ${allColors.length}`);
-
-    // === PHASE 4: Deduplicate and filter ===
-    const deduplicatedColors = deduplicateColors(allColors, 20);
-    logger.log(
-      `After deduplication: ${deduplicatedColors.length} unique colors`,
-    );
-
-    let filteredPalette = filterExtremeColors(deduplicatedColors);
-
-    if (filteredPalette.length < SETTINGS.colorCount) {
-      logger.log(
-        "Not enough colors after filtering, using deduplicated palette",
-      );
-      filteredPalette = deduplicatedColors;
-    }
-
-    // Cache for re-selection when count changes
-    cachedFilteredPalette = filteredPalette;
-
-    // === PHASE 5: Apply hue-bucket selection for final palette ===
-    const finalPalette = selectDiversePalette(
-      filteredPalette,
-      SETTINGS.colorCount,
-    );
-
-    logger.log(`Final palette: ${finalPalette.length} diverse colors`);
 
     renderPalette(finalPalette);
-    savePaletteToHistory();
+    Settings.savePaletteToHistory(finalPalette, logger);
     showResultState();
   } catch (error) {
-    console.error("Error extracting colors:", error);
+    logger.error("Error extracting colors:", error);
     showErrorState("Error extracting colors");
   }
 }
 
-/**
- * Removes near-duplicate colors from a palette.
- * @param {number[][]} colors - Array of [r, g, b] colors
- * @param {number} threshold - Minimum distance to consider colors different
- * @returns {number[][]} Deduplicated color array
- */
-function deduplicateColors(colors, threshold) {
-  const unique = [];
-
-  for (const color of colors) {
-    const isDuplicate = unique.some(
-      (existing) => colorDistance(existing, color) < threshold,
-    );
-
-    if (!isDuplicate) {
-      unique.push(color);
-    }
-  }
-
-  return unique;
-}
-
-/**
- * Re-select colors from cached palette when count changes.
- * This avoids re-running ColorThief which can give different results.
- */
 function reselectFromCache() {
+  const ColorUtils = window.ColorUtils;
+  const Settings = window.Settings;
   if (cachedFilteredPalette.length === 0) return;
-
-  const finalPalette = selectDiversePalette(
+  const finalPalette = ColorUtils.selectDiversePalette(
     cachedFilteredPalette,
-    SETTINGS.colorCount,
+    Settings.SETTINGS.colorCount,
+    {
+      minSaturationColorful: CONFIG.MIN_SATURATION_COLORFUL,
+      minColorDistance: CONFIG.MIN_COLOR_DISTANCE,
+      logger,
+    },
   );
-  logger.log(`Re-selected ${finalPalette.length} colors from cache`);
   renderPalette(finalPalette);
 }
 
-/**
- * Captures a screenshot of the current tab.
- */
 function captureScreenshot() {
   showLoadingState();
-
-  // Send message to background script to capture the tab
   chrome.runtime.sendMessage({ action: "captureScreen" }, (response) => {
     if (chrome.runtime.lastError) {
-      console.error("Runtime error:", chrome.runtime.lastError.message);
+      logger.error("Runtime error:", chrome.runtime.lastError.message);
       showErrorState("Cannot capture this page");
       return;
     }
-
-    if (response.error) {
-      console.error("Capture error:", response.error);
+    if (!response || response.error) {
+      logger.error(
+        "Capture error:",
+        response ? response.error : "No response from background",
+      );
       showErrorState("Cannot capture this page");
       return;
     }
-
-    // Set the screenshot as the image source
     DOM.previewImage.src = response.dataUrl;
-
     DOM.previewImage.onload = () => {
       setTimeout(() => {
         extractAndRenderColors(DOM.previewImage);
       }, 50);
     };
-
     DOM.previewImage.onerror = () => {
-      console.error("Error loading screenshot");
+      logger.error("Error loading screenshot");
       showErrorState("Error loading screenshot");
     };
   });
@@ -1592,307 +348,163 @@ function captureScreenshot() {
 
 /**
  * ============================================
- * EVENT HANDLERS
+ * ORCHESTRATION & EVENT HANDLERS
  * ============================================
  */
 
-/**
- * Initialize recapture button.
- */
-function initRecaptureButton() {
-  DOM.recaptureButton.addEventListener("click", (e) => {
-    e.stopPropagation();
-    captureScreenshot();
-  });
-}
+function init() {
+  const Settings = window.Settings;
+  const Export = window.Export;
 
-/**
- * Initialize eyedropper for click-to-sample on preview image.
- */
-function initEyedropper() {
-  if (!DOM.previewImage) return;
-
-  DOM.previewImage.addEventListener("click", async (e) => {
-    if (!DOM.previewImage.src || !DOM.previewImage.complete) return;
-
-    // Get click position relative to image
-    const rect = DOM.previewImage.getBoundingClientRect();
-    const scaleX = DOM.previewImage.naturalWidth / rect.width;
-    const scaleY = DOM.previewImage.naturalHeight / rect.height;
-    const x = Math.floor((e.clientX - rect.left) * scaleX);
-    const y = Math.floor((e.clientY - rect.top) * scaleY);
-
-    // Get pixel color from shared canvas (already updated in captureScreenshot)
-    if (!sharedCanvas || sharedCanvas.width === 0) return;
-
-    const pixel = sharedCtx.getImageData(x, y, 1, 1).data;
-    const rgb = [pixel[0], pixel[1], pixel[2]];
-    const colorValue = formatColor(rgb);
-    const colorName = getColorName(rgb);
-
-    // Copy to clipboard
-    const success = await copyToClipboard(colorValue);
-    if (success) {
-      showToast(`${colorName}: ${colorValue} copied!`);
-    }
-  });
-
-  // Change cursor on image to indicate clickable
-  DOM.previewImage.style.cursor = "crosshair";
-}
-
-/**
- * Initialize export button.
- */
-function initExportButton() {
-  DOM.exportButton.addEventListener("click", () => {
-    exportPalette();
-  });
-}
-
-/**
- * Initialize copy palette button.
- */
-function initCopyPaletteButton() {
-  if (!DOM.copyPaletteButton) return;
-
-  DOM.copyPaletteButton.addEventListener("click", async () => {
-    if (currentPalette.length === 0) {
-      showToast("No palette to copy");
-      return;
-    }
-
-    const colors = currentPalette.map((rgb) => formatColor(rgb));
-    const text = colors.join("\n");
-
-    const success = await copyToClipboard(text);
-    if (success) {
-      showToast(`${colors.length} colors copied!`);
-    } else {
-      showToast("Copy failed");
-    }
-  });
-}
-
-/**
- * Initialize share button.
- */
-function initShareButton() {
-  if (!DOM.shareButton) return;
-
-  DOM.shareButton.addEventListener("click", () => {
-    sharePalette();
-  });
-}
-
-/**
- * Initialize settings panel.
- */
-function initSettingsPanel() {
-  // Open settings
+  // 1. Settings listeners
   if (DOM.settingsButton) {
     DOM.settingsButton.addEventListener("click", () => {
       DOM.settingsOverlay.classList.remove("hidden");
       setTimeout(() => DOM.settingsOverlay.classList.add("show"), 10);
     });
   }
-
-  // Close settings
   if (DOM.settingsClose) {
     DOM.settingsClose.addEventListener("click", () => {
       DOM.settingsOverlay.classList.remove("show");
       setTimeout(() => DOM.settingsOverlay.classList.add("hidden"), 100);
     });
   }
-
-  // Close on overlay click (outside panel)
-  if (DOM.settingsOverlay) {
-    DOM.settingsOverlay.addEventListener("click", (e) => {
-      if (e.target === DOM.settingsOverlay) {
-        DOM.settingsOverlay.classList.remove("show");
-        setTimeout(() => DOM.settingsOverlay.classList.add("hidden"), 100);
-      }
-    });
-  }
-
-  // Color count slider
   if (DOM.colorCountSlider) {
     DOM.colorCountSlider.addEventListener("input", (e) => {
-      const value = parseInt(e.target.value, 10);
-      SETTINGS.colorCount = value;
-      if (DOM.colorCountValue) {
-        DOM.colorCountValue.textContent = value;
-      }
-      saveSettings();
-
-      // Re-select from cached palette (doesn't re-run ColorThief)
+      const val = parseInt(e.target.value, 10);
+      Settings.SETTINGS.colorCount = val;
+      if (DOM.colorCountValue) DOM.colorCountValue.textContent = val;
+      Settings.saveSettings(logger);
       reselectFromCache();
     });
   }
-
-  // Color format selector
-  const formatRadios = document.querySelectorAll('input[name="color-format"]');
-  formatRadios.forEach((radio) => {
+  document.querySelectorAll('input[name="color-format"]').forEach((radio) => {
     radio.addEventListener("change", (e) => {
-      SETTINGS.colorFormat = e.target.value;
-      saveSettings();
+      Settings.SETTINGS.colorFormat = e.target.value;
+      Settings.saveSettings(logger);
       updateColorLabels();
     });
   });
-
-  // Export format selector
-  const exportRadios = document.querySelectorAll('input[name="export-format"]');
-  exportRadios.forEach((radio) => {
+  document.querySelectorAll('input[name="export-format"]').forEach((radio) => {
     radio.addEventListener("change", (e) => {
-      SETTINGS.exportFormat = e.target.value;
-      saveSettings();
-
-      // Toggle image export options visibility
-      const imageExportOptions = document.getElementById(
-        "image-export-options",
-      );
-      if (imageExportOptions) {
-        imageExportOptions.style.display =
-          e.target.value === "png" ? "block" : "none";
-      }
+      Settings.SETTINGS.exportFormat = e.target.value;
+      Settings.saveSettings(logger);
+      const opt = document.getElementById("image-export-options");
+      if (opt) opt.style.display = e.target.value === "png" ? "block" : "none";
+    });
+  });
+  if (DOM.showHexInExport) {
+    DOM.showHexInExport.addEventListener("change", (e) => {
+      Settings.SETTINGS.showHexInExport = e.target.checked;
+      Settings.saveSettings(logger);
+    });
+  }
+  document.querySelectorAll('input[name="theme"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      Settings.SETTINGS.theme = e.target.value;
+      Settings.saveSettings(logger);
+      Settings.applyTheme();
     });
   });
 
-  // Export options checkbox
-  if (DOM.showHexInExport) {
-    DOM.showHexInExport.addEventListener("change", (e) => {
-      SETTINGS.showHexInExport = e.target.checked;
-      saveSettings();
+  // 2. Action buttons
+  DOM.recaptureButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    captureScreenshot();
+  });
+  DOM.exportButton.addEventListener("click", () =>
+    Export.exportPalette(currentPalette, Settings.SETTINGS, DOM, showToast),
+  );
+  if (DOM.copyPaletteButton) {
+    DOM.copyPaletteButton.addEventListener("click", async () => {
+      if (currentPalette.length === 0) {
+        showToast("No palette to copy");
+        return;
+      }
+      const ColorUtils = window.ColorUtils;
+      const colors = currentPalette.map((rgb) =>
+        ColorUtils.formatColor(rgb, Settings.SETTINGS.colorFormat),
+      );
+      if (await copyToClipboard(colors.join("\n")))
+        showToast(`${colors.length} colors copied!`);
+    });
+  }
+  if (DOM.shareButton) {
+    DOM.shareButton.addEventListener("click", () => {
+      const ColorUtils = window.ColorUtils;
+      Export.sharePalette(
+        currentPalette,
+        ColorUtils,
+        copyToClipboard,
+        showToast,
+      );
     });
   }
 
-  // Theme selector
-  const themeRadios = document.querySelectorAll('input[name="theme"]');
-  themeRadios.forEach((radio) => {
-    radio.addEventListener("change", (e) => {
-      SETTINGS.theme = e.target.value;
-      saveSettings();
-      applyTheme();
-    });
+  // 3. Eyedropper
+  DOM.previewImage.style.cursor = "crosshair";
+  DOM.previewImage.addEventListener("click", async (e) => {
+    if (
+      !DOM.previewImage.src ||
+      !DOM.previewImage.complete ||
+      !sharedCanvas ||
+      sharedCanvas.width === 0
+    )
+      return;
+    const rect = DOM.previewImage.getBoundingClientRect();
+    const scaleX = DOM.previewImage.naturalWidth / rect.width;
+    const scaleY = DOM.previewImage.naturalHeight / rect.height;
+    const x = Math.floor((e.clientX - rect.left) * scaleX);
+    const y = Math.floor((e.clientY - rect.top) * scaleY);
+    const pixel = sharedCtx.getImageData(x, y, 1, 1).data;
+    const rgb = [pixel[0], pixel[1], pixel[2]];
+    const ColorUtils = window.ColorUtils;
+    const val = ColorUtils.formatColor(rgb, Settings.SETTINGS.colorFormat);
+    if (await copyToClipboard(val))
+      showToast(`${ColorUtils.getColorName(rgb)}: ${val} copied!`);
   });
-}
 
-/**
- * Update all color labels with current format.
- */
-function updateColorLabels() {
-  const blocks = document.querySelectorAll(".color-block");
-  blocks.forEach((block) => {
-    const rgbData = block.getAttribute("data-rgb");
-    if (rgbData) {
-      const rgb = JSON.parse(rgbData);
-      const label = block.querySelector(".color-hex");
-      if (label) {
-        const displayValue = formatColor(rgb);
-        label.textContent = displayValue;
-        block.setAttribute("title", `Click to copy ${displayValue}`);
-      }
-    }
-  });
-}
-
-/**
- * Initialize keyboard shortcuts.
- */
-function initKeyboardShortcuts() {
+  // 4. Keyboard Shortcuts
   document.addEventListener("keydown", (e) => {
-    // Ignore if typing in an input
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-
     switch (e.key.toLowerCase()) {
       case "r":
-        // Recapture screenshot
         captureScreenshot();
         break;
       case "c":
-        // Copy all colors
-        if (DOM.copyPaletteButton) {
-          DOM.copyPaletteButton.click();
-        }
+        if (DOM.copyPaletteButton) DOM.copyPaletteButton.click();
         break;
       case "e":
-        // Export palette
-        exportPalette();
+        DOM.exportButton.click();
         break;
       case "s":
-        // Toggle settings
-        if (DOM.settingsOverlay) {
-          DOM.settingsOverlay.classList.toggle("hidden");
-        }
+        DOM.settingsOverlay.classList.toggle("hidden");
         break;
       case "escape":
-        // Close settings
-        if (
-          DOM.settingsOverlay &&
-          !DOM.settingsOverlay.classList.contains("hidden")
-        ) {
-          DOM.settingsOverlay.classList.add("hidden");
-        }
+        DOM.settingsOverlay.classList.add("hidden");
         break;
     }
   });
+
+  // 5. Initial Load
+  Settings.loadSettings(logger).then(() => {
+    Settings.loadPaletteHistory(logger);
+    Settings.applySettingsToUI(DOM);
+    captureScreenshot();
+  });
 }
 
-/**
- * ============================================
- * INITIALIZATION
- * ============================================
- */
-
-/**
- * Initialize the extension popup.
- */
-async function init() {
-  // Load saved settings and history
-  await loadSettings();
-  await loadPaletteHistory();
-  applySettingsToUI();
-
-  // Initialize event handlers
-  initRecaptureButton();
-  initExportButton();
-  initCopyPaletteButton();
-  initShareButton();
-  initSettingsPanel();
-  initKeyboardShortcuts();
-  initEyedropper();
-
-  // Automatically capture screenshot when popup opens
-  captureScreenshot();
-
-  logger.log("VibePalette initialized - capturing screen...");
-}
-
-// Run initialization when DOM is ready
 if (typeof document !== "undefined" && typeof process === "undefined") {
-  if (document.readyState === "loading") {
+  if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  else init();
 }
 
 // Export for Vitest
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    loadSettings,
-    loadPaletteHistory,
-    extractAndRenderColors,
-    initEyedropper,
-    getColorFamily,
-    getColorName,
-    formatColor,
-    rgbToHex,
-    copyToClipboard,
-    showToast,
-    showErrorState,
-    showLoadingState,
-    showResultState,
-    SETTINGS,
+    CONFIG,
+    SETTINGS: typeof Settings !== "undefined" ? Settings.SETTINGS : {},
+    currentPalette: () => currentPalette,
   };
 }
