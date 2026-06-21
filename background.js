@@ -12,7 +12,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Capture the visible tab
         chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
             if (chrome.runtime.lastError) {
-                console.error('Screenshot error:', chrome.runtime.lastError.message);
                 sendResponse({ error: chrome.runtime.lastError.message });
             } else {
                 sendResponse({ dataUrl: dataUrl });

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Optimize the Eyedropper tool and improve storage resilience as recommended in the code review.
+Ship VibePalette 2.0.0 as a public-ready extension update.
 
 ## Phases
 
@@ -28,6 +28,14 @@ Optimize the Eyedropper tool and improve storage resilience as recommended in th
 - [x] Create test suite for storage resilience (`loadSettings`).
 - [x] Create test suite for core color logic (`rgbToHex`, `getColorFamily`).
 - [x] Verify everything passes and no regressions exist.
+
+### Phase 5: Public v2.0.0 Delivery [x]
+
+- [x] Improve palette extraction with dominance-aware real-image sampling.
+- [x] Add settings persistence, export helpers, and bundled fonts.
+- [x] Add manifest, popup, simulation, and real-image regression tests.
+- [x] Update README, changelog, and docs for release 2.0.0.
+- [x] Verify tests, audit, and unpacked browser smoke.
 
 ## Errors Encountered
 

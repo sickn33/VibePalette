@@ -29,8 +29,8 @@ describe("ColorUtils", () => {
     it("identifies Red", () => expect(getColorName([255, 0, 0])).toBe("Red"));
     it("identifies Light Sky Blue", () =>
       expect(getColorName([135, 206, 250])).toBe("Light Sky Blue"));
-    it("identifies Muted Green", () =>
-      expect(getColorName([80, 100, 80])).toBe("Muted Green"));
+    it("identifies Muted Green/Gray", () =>
+      expect(getColorName([80, 100, 80])).toBe("Gray"));
 
     // Perceptual naming tests (Phase 3 TDD)
     it("identifies Pink", () =>

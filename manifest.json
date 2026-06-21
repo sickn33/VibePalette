@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "VibePalette",
-    "version": "1.2.0",
+    "version": "2.0.0",
     "description": "Capture your screen and extract beautiful color palettes instantly.",
     "author": "VibePalette",
     "action": {
@@ -19,7 +19,8 @@
         "128": "icons/icon128.png"
     },
     "permissions": [
-        "activeTab"
+        "activeTab",
+        "storage"
     ],
     "background": {
         "service_worker": "background.js"

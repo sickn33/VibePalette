@@ -445,6 +445,17 @@ describe("Palette Simulation", () => {
       expected: ["Navy", "Blue", "Sky Blue"],
     },
     {
+      name: "Edge Case: User Feedback",
+      elements: [
+        { type: "bg", color: [26, 31, 16] }, // #1A1F10 "Deep Lime" -> Should be Dark Green/Olive
+        { type: "header", color: [255, 220, 150] }, // #FFDC96 "Orange" -> Should be Light Yellow/Cream
+        { type: "button", color: [138, 127, 127] }, // #8A7F7F "Gray" -> Should be Taupe?
+        { type: "content", color: [57, 50, 54] }, // #393236 "Charcoal" -> Is OK.
+      ],
+      expected: ["Dark Green", "Warm Yellow", "Taupe", "Charcoal"],
+      // Note: We might need to add Taupe/Dark Green to dictionary if missing.
+    },
+    {
       name: "High Contrast",
       elements: [
         { type: "bg", color: [0, 0, 0] }, // Black

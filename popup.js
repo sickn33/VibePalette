@@ -106,6 +106,7 @@ const colorThief = typeof ColorThief !== "undefined" ? new ColorThief() : null;
  */
 let currentPalette = [];
 let cachedFilteredPalette = [];
+let settingsHideTimer = null;
 
 /**
  * ============================================
@@ -160,6 +161,28 @@ function showErrorState(message = "Cannot capture this page") {
   DOM.errorState.classList.remove("hidden");
   const errorText = DOM.errorState.querySelector(".error-text");
   if (errorText) errorText.textContent = message;
+  const errorHint = DOM.errorState.querySelector(".error-hint");
+  if (errorHint)
+    errorHint.textContent =
+      "Open a standard webpage, then click VibePalette again.";
+}
+
+function openSettings() {
+  if (settingsHideTimer) {
+    clearTimeout(settingsHideTimer);
+    settingsHideTimer = null;
+  }
+  DOM.settingsOverlay.classList.remove("hidden");
+  DOM.settingsOverlay.classList.add("show");
+}
+
+function closeSettings() {
+  DOM.settingsOverlay.classList.remove("show");
+  if (settingsHideTimer) clearTimeout(settingsHideTimer);
+  settingsHideTimer = setTimeout(() => {
+    DOM.settingsOverlay.classList.add("hidden");
+    settingsHideTimer = null;
+  }, 100);
 }
 
 /**
@@ -178,10 +201,12 @@ function createColorBlock(rgb) {
   );
   const colorName = ColorUtils.getColorName(rgb);
 
-  const block = document.createElement("div");
+  const block = document.createElement("button");
+  block.type = "button";
   block.className = "color-block";
   block.setAttribute("data-rgb", JSON.stringify(rgb));
   block.setAttribute("title", `${colorName}\n${displayValue}\nClick to copy`);
+  block.setAttribute("aria-label", `Copy ${colorName} ${displayValue}`);
 
   const swatch = document.createElement("div");
   swatch.className = "color-swatch";
@@ -239,6 +264,7 @@ function updateColorLabels() {
           );
           label.textContent = displayValue;
           block.setAttribute("title", `Click to copy ${displayValue}`);
+          block.setAttribute("aria-label", `Copy ${displayValue}`);
         }
       } catch (err) {
         logger.error("Failed to parse RGB data:", err);
@@ -321,12 +347,12 @@ function captureScreenshot() {
   showLoadingState();
   chrome.runtime.sendMessage({ action: "captureScreen" }, (response) => {
     if (chrome.runtime.lastError) {
-      logger.error("Runtime error:", chrome.runtime.lastError.message);
+      logger.warn("Runtime error:", chrome.runtime.lastError.message);
       showErrorState("Cannot capture this page");
       return;
     }
     if (!response || response.error) {
-      logger.error(
+      logger.warn(
         "Capture error:",
         response ? response.error : "No response from background",
       );
@@ -358,15 +384,14 @@ function init() {
 
   // 1. Settings listeners
   if (DOM.settingsButton) {
-    DOM.settingsButton.addEventListener("click", () => {
-      DOM.settingsOverlay.classList.remove("hidden");
-      setTimeout(() => DOM.settingsOverlay.classList.add("show"), 10);
-    });
+    DOM.settingsButton.addEventListener("click", openSettings);
   }
   if (DOM.settingsClose) {
-    DOM.settingsClose.addEventListener("click", () => {
-      DOM.settingsOverlay.classList.remove("show");
-      setTimeout(() => DOM.settingsOverlay.classList.add("hidden"), 100);
+    DOM.settingsClose.addEventListener("click", closeSettings);
+  }
+  if (DOM.settingsOverlay) {
+    DOM.settingsOverlay.addEventListener("click", (e) => {
+      if (e.target === DOM.settingsOverlay) closeSettings();
     });
   }
   if (DOM.colorCountSlider) {
@@ -478,10 +503,11 @@ function init() {
         DOM.exportButton.click();
         break;
       case "s":
-        DOM.settingsOverlay.classList.toggle("hidden");
+        if (DOM.settingsOverlay.classList.contains("hidden")) openSettings();
+        else closeSettings();
         break;
       case "escape":
-        DOM.settingsOverlay.classList.add("hidden");
+        closeSettings();
         break;
     }
   });

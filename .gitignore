@@ -4,3 +4,9 @@ node_modules/
 .idea/
 .vscode/
 *.swp
+.agent/
+GOAL*.md
+WORKLOG.md
+debug_*.txt
+failure_log.txt
+last_run.txt
