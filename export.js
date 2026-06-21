@@ -21,7 +21,7 @@ function exportPalette(currentPalette, SETTINGS, DOM, showToast) {
       break;
     case "png":
     default:
-      exportPaletteImage(currentPalette, DOM, showToast);
+      exportPaletteImage(currentPalette, DOM, showToast, SETTINGS);
       break;
   }
 }
@@ -40,7 +40,7 @@ async function sharePalette(
     return;
   }
 
-  const hexColors = currentPalette.map((rgb) =>
+  const hexColors = currentPalette.slice(0, 10).map((rgb) =>
     ColorUtils.rgbToHex(rgb[0], rgb[1], rgb[2]).replace("#", ""),
   );
   const coolorsUrl = `https://coolors.co/${hexColors.join("-")}`;
@@ -130,7 +130,12 @@ function downloadTextFile(content, filename, mimeType) {
 /**
  * Generates and downloads a cinematic palette image.
  */
-async function exportPaletteImage(currentPalette, DOM, showToast) {
+async function exportPaletteImage(
+  currentPalette,
+  DOM,
+  showToast,
+  SETTINGS = { showHexInExport: true },
+) {
   if (!DOM.previewImage.src || currentPalette.length === 0) {
     showToast("No collection to export");
     return;
@@ -170,7 +175,7 @@ async function exportPaletteImage(currentPalette, DOM, showToast) {
     (imgW - (colsPerRow - 1) * blockGap) / colsPerRow,
   );
   const blockHeight = Math.floor(blockWidth * 1.2);
-  const labelSpace = 150;
+  const labelSpace = SETTINGS.showHexInExport ? 150 : 90;
   const rowHeight = blockHeight + labelSpace;
   const footerSpace = 60;
 
@@ -245,8 +250,10 @@ async function exportPaletteImage(currentPalette, DOM, showToast) {
     if (displayName !== colorName.toUpperCase()) displayName += "..";
     ctx.fillText(displayName, x + blockWidth / 2, y + blockHeight + 60);
 
-    ctx.font = `${hexFontSize}px "Courier New", monospace`;
-    ctx.fillText(hex, x + blockWidth / 2, y + blockHeight + 110);
+    if (SETTINGS.showHexInExport) {
+      ctx.font = `${hexFontSize}px "Courier New", monospace`;
+      ctx.fillText(hex, x + blockWidth / 2, y + blockHeight + 110);
+    }
   });
 
   ctx.font = `bold 12px "Didact Gothic", sans-serif`;

@@ -21,9 +21,24 @@ const EXTRACT_CONFIG = {
   SKY_END_Y_RATIO: 0.35,
 };
 
+function resolveImageMagickCommand() {
+  for (const command of ["magick", "convert"]) {
+    try {
+      execFileSync(command, ["-version"], { stdio: "ignore" });
+      return command;
+    } catch {
+      // Optional local tool for real-image decoding.
+    }
+  }
+  return null;
+}
+
+const IMAGE_MAGICK = resolveImageMagickCommand();
+const describeRealImages = IMAGE_MAGICK ? describe : describe.skip;
+
 function decodeImage(file) {
   const size = execFileSync(
-    "magick",
+    IMAGE_MAGICK,
     [file, "-auto-orient", "-resize", "360x360>", "-format", "%w %h", "info:"],
     { encoding: "utf8" },
   )
@@ -32,7 +47,7 @@ function decodeImage(file) {
     .map(Number);
   const [width, height] = size;
   const data = new Uint8ClampedArray(
-    execFileSync("magick", [
+    execFileSync(IMAGE_MAGICK, [
       file,
       "-auto-orient",
       "-resize",
@@ -93,7 +108,7 @@ function minimumDistance(palette) {
   return minDistance;
 }
 
-describe("real image palette extraction", () => {
+describeRealImages("real image palette extraction", () => {
   const cases = [
     {
       file: "coffee.png",

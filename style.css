@@ -540,3 +540,14 @@ kbd {
     --wa-yellow: #bfa05a;
   }
 }
+
+.wes-anderson-mode.theme-dark {
+  --wa-cream: #2c2c2c;
+  --wa-brown: #e9e4d4;
+  --bg-primary: #2c2c2c;
+  --bg-secondary: #3a3a3a;
+  --text-primary: #e9e4d4;
+  --text-secondary: #c0baa0;
+  --wa-pink: #d67a8a;
+  --wa-yellow: #bfa05a;
+}

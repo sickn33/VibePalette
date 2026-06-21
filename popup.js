@@ -106,6 +106,7 @@ const colorThief = typeof ColorThief !== "undefined" ? new ColorThief() : null;
  */
 let currentPalette = [];
 let cachedFilteredPalette = [];
+let settingsHideTimer = null;
 
 /**
  * ============================================
@@ -167,13 +168,21 @@ function showErrorState(message = "Cannot capture this page") {
 }
 
 function openSettings() {
+  if (settingsHideTimer) {
+    clearTimeout(settingsHideTimer);
+    settingsHideTimer = null;
+  }
   DOM.settingsOverlay.classList.remove("hidden");
   DOM.settingsOverlay.classList.add("show");
 }
 
 function closeSettings() {
   DOM.settingsOverlay.classList.remove("show");
-  setTimeout(() => DOM.settingsOverlay.classList.add("hidden"), 100);
+  if (settingsHideTimer) clearTimeout(settingsHideTimer);
+  settingsHideTimer = setTimeout(() => {
+    DOM.settingsOverlay.classList.add("hidden");
+    settingsHideTimer = null;
+  }, 100);
 }
 
 /**

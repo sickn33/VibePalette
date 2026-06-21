@@ -7,6 +7,8 @@
 - Added settings persistence, export helpers, bundled fonts, and MIT license.
 - Added manifest, popup, simulation, and real-image regression coverage.
 - Documented scikit-image fixture provenance for public test assets.
+- Addressed PR review feedback for optional ImageMagick tests, settings overlay
+  timing, PNG code-toggle behavior, dark-theme override, and Coolors share URLs.
 - Verified with `npm test`, `npm audit --audit-level=moderate`, and an Edge
   unpacked-extension smoke test.
 
