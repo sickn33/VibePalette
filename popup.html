@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VibePalette - Cinematic Edition</title>
+    <title>VibePalette</title>
     <link rel="stylesheet" href="style.css" />
   </head>
 
@@ -16,7 +16,7 @@
         <!-- HEADER - Cinematic Title -->
         <header class="header">
           <h1 class="logo">VibePalette</h1>
-          <p class="tagline">An Artistic Color Extractor</p>
+          <p class="tagline">Capture colors from this tab</p>
           <button
             id="settings-button"
             class="settings-button"
@@ -47,13 +47,17 @@
            IMAGE DISPLAY - Perfectly Centered
            ============================================ -->
         <div id="image-container" class="image-container wa-panel">
-          <img id="preview-image" class="preview-image" alt="Cinematic scene" />
+          <img
+            id="preview-image"
+            class="preview-image"
+            alt="Captured page preview"
+          />
           <!-- Recapture button - Snappy placement -->
           <button
             id="recapture-button"
             class="recapture-button"
-            title="Recapture Scene"
-            aria-label="Recapture"
+            title="Capture again"
+            aria-label="Capture again"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -90,7 +94,8 @@
             <button
               id="copy-palette-button"
               class="wa-btn secondary"
-              title="Copy Collection"
+              title="Copy palette"
+              aria-label="Copy palette"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -109,11 +114,13 @@
                   d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
                 ></path>
               </svg>
+              <span>Copy</span>
             </button>
             <button
               id="share-button"
               class="wa-btn secondary"
-              title="Share Palette"
+              title="Share palette"
+              aria-label="Share palette"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -130,40 +137,50 @@
                 <path d="m22 2-7 20-4-9-9-4Z"></path>
                 <path d="M22 2 11 13"></path>
               </svg>
+              <span>Share</span>
             </button>
             <button
               id="export-button"
               class="wa-btn primary"
-              title="Export as Art"
+              title="Export palette"
+              aria-label="Export palette"
             >
-              <span>Export Collection</span>
+              <span>Export</span>
             </button>
           </div>
         </div>
 
         <!-- LOADING -->
-        <div id="loading" class="loading">
+        <div id="loading" class="loading" role="status" aria-live="polite">
           <div class="spinner"></div>
-          <p>Developing film...</p>
+          <p>Capturing colors...</p>
         </div>
 
         <!-- ERROR -->
-        <div id="error-state" class="error-state hidden">
-          <p class="error-text">SCENE INTERRUPTED</p>
-          <p class="error-hint">Please try a different view</p>
+        <div id="error-state" class="error-state hidden" role="alert">
+          <p class="error-text">Cannot capture this page</p>
+          <p class="error-hint">
+            Open a standard webpage, then click VibePalette again.
+          </p>
         </div>
       </div>
     </div>
 
     <!-- SETTINGS PANEL -->
-    <div id="settings-overlay" class="settings-overlay hidden">
+    <div
+      id="settings-overlay"
+      class="settings-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
+    >
       <div class="settings-panel wa-panel">
         <div class="settings-header">
-          <h2>Specifications</h2>
+          <h2 id="settings-title">Settings</h2>
           <button
             id="settings-close"
             class="settings-close"
-            aria-label="Close Specifications"
+            aria-label="Close settings"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -186,7 +203,7 @@
         <div class="settings-content">
           <div class="setting-group">
             <label class="setting-label">
-              <span>Color Density</span>
+              <span>Colors</span>
               <span id="color-count-value" class="setting-value">10</span>
             </label>
             <input
@@ -196,19 +213,19 @@
               min="5"
               max="15"
               value="10"
-              aria-label="Color Density"
+              aria-label="Number of colors"
             />
           </div>
 
           <div class="setting-group" id="image-export-options">
             <label class="checkbox-option">
               <input type="checkbox" id="show-hex-in-export" checked />
-              <span>Detail color codes in collection</span>
+              <span>Show color codes on image export</span>
             </label>
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Color Notation</label>
+            <label class="setting-label">Color format</label>
             <div class="format-selector">
               <label class="format-option">
                 <input type="radio" name="color-format" value="hex" checked />
@@ -226,11 +243,11 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Export Medium</label>
+            <label class="setting-label">Export format</label>
             <div class="format-selector">
               <label class="format-option">
                 <input type="radio" name="export-format" value="png" checked />
-                <span>IMAGE</span>
+                <span>PNG</span>
               </label>
               <label class="format-option">
                 <input type="radio" name="export-format" value="css" />
@@ -244,7 +261,7 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Atmosphere</label>
+            <label class="setting-label">Theme</label>
             <div class="format-selector">
               <label class="format-option">
                 <input type="radio" name="theme" value="system" checked />
@@ -262,19 +279,19 @@
           </div>
 
           <div class="setting-group shortcuts-group">
-            <label class="setting-label">Operation Guide</label>
+            <label class="setting-label">Shortcuts</label>
             <div class="shortcuts-list">
-              <div class="shortcut"><kbd>R</kbd> Develop</div>
-              <div class="shortcut"><kbd>C</kbd> Collect</div>
+              <div class="shortcut"><kbd>R</kbd> Capture</div>
+              <div class="shortcut"><kbd>C</kbd> Copy</div>
               <div class="shortcut"><kbd>E</kbd> Export</div>
-              <div class="shortcut"><kbd>S</kbd> Specs</div>
+              <div class="shortcut"><kbd>S</kbd> Settings</div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="toast" class="toast hidden">
+    <div id="toast" class="toast hidden" role="status" aria-live="polite">
       <span class="toast-text">Collection Updated</span>
     </div>
 

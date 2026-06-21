@@ -67,6 +67,11 @@ body {
   padding: 15px;
 }
 
+button,
+input {
+  font: inherit;
+}
+
 /* --------------------------------------------
    THE FRAMES
    -------------------------------------------- */
@@ -102,7 +107,7 @@ body {
   font-family: "Poiret One", cursive;
   font-size: 32px;
   text-transform: uppercase;
-  letter-spacing: 4px;
+  letter-spacing: 0;
   color: var(--wa-brown);
   margin-bottom: 5px;
 }
@@ -110,7 +115,7 @@ body {
 .tagline {
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 0;
   color: var(--text-secondary);
 }
 
@@ -118,6 +123,8 @@ body {
   position: absolute;
   top: 0;
   right: 0;
+  width: 32px;
+  height: 32px;
   background: none;
   border: none;
   cursor: pointer;
@@ -159,11 +166,14 @@ body {
   position: absolute;
   bottom: 10px;
   right: 10px;
+  width: 40px;
+  height: 40px;
   background: var(--wa-cream);
   border: var(--wa-border-thin);
-  padding: 5px;
   cursor: pointer;
   color: var(--wa-brown);
+  display: grid;
+  place-items: center;
 }
 
 /* --------------------------------------------
@@ -184,6 +194,11 @@ body {
 }
 
 .color-block {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -194,7 +209,7 @@ body {
 
 .color-name {
   font-size: 11px;
-  height: 30px; /* Fixed height for up to 2 lines of text */
+  min-height: 30px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -216,10 +231,19 @@ body {
   transform: translateY(-2px);
 }
 
+.color-block:focus-visible .color-swatch,
+.recapture-button:focus-visible,
+.settings-button:focus-visible,
+.settings-close:focus-visible,
+.wa-btn:focus-visible {
+  outline: 2px solid var(--wa-red);
+  outline-offset: 2px;
+}
+
 .color-hex {
   font-size: 10px;
   font-weight: bold;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   color: var(--wa-brown);
 }
 
@@ -245,7 +269,7 @@ body {
   font-family: "Poiret One", cursive;
   font-weight: bold;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   cursor: pointer;
   background-color: var(--wa-cream);
   color: var(--wa-brown);
@@ -272,10 +296,11 @@ body {
 }
 
 .wa-btn.secondary {
-  flex: 1;
+  flex: 1.05;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 
 /* --------------------------------------------
@@ -288,6 +313,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 14px;
   z-index: 1000;
   opacity: 0;
   visibility: hidden;
@@ -301,6 +327,8 @@ body {
 
 .settings-panel {
   width: 85%;
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
   background-color: var(--wa-cream);
   border: var(--wa-border-thick);
 }
@@ -315,13 +343,19 @@ body {
 
 .settings-header h2 {
   font-family: "Poiret One", cursive;
-  letter-spacing: 2px;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .settings-close {
+  width: 32px;
+  height: 32px;
   background: none;
   border: none;
   cursor: pointer;
+  color: var(--wa-brown);
+  display: grid;
+  place-items: center;
 }
 
 .settings-content {
@@ -343,7 +377,7 @@ body {
 .setting-label {
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   display: flex;
   justify-content: space-between;
 }
@@ -373,10 +407,14 @@ body {
   flex: 1;
   text-align: center;
   cursor: pointer;
+  position: relative;
 }
 
 .format-option input {
-  display: none;
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
 }
 
 .format-option span {
@@ -390,6 +428,44 @@ body {
   color: var(--wa-cream);
 }
 
+.format-option input:focus-visible + span {
+  outline: 2px solid var(--wa-red);
+  outline-offset: -2px;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.checkbox-option input {
+  accent-color: var(--wa-brown);
+}
+
+.shortcuts-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.shortcut {
+  font-size: 12px;
+}
+
+kbd {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border: var(--wa-border-thin);
+  background: var(--bg-secondary);
+  font-family: "Didact Gothic", sans-serif;
+  font-size: 11px;
+}
+
 /* --------------------------------------------
    UTILITIES
    -------------------------------------------- */
@@ -400,7 +476,27 @@ body {
 .loading {
   text-align: center;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 0;
+}
+
+.error-state {
+  text-align: center;
+}
+
+.error-text {
+  font-family: "Poiret One", cursive;
+  font-size: 20px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+}
+
+.error-hint {
+  max-width: 280px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .spinner {
@@ -426,7 +522,7 @@ body {
   padding: 8px 15px;
   font-family: "Poiret One", cursive;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 0;
 }
 
 /* --------------------------------------------

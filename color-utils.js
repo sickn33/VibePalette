@@ -32,10 +32,21 @@ const NAMED_COLORS = [
   { name: "White", rgb: [255, 255, 255] },
   { name: "Charcoal", rgb: [54, 69, 79] },
   { name: "Slate Gray", rgb: [112, 128, 144] },
-  { name: "Light Slate Gray", rgb: [119, 136, 153] },
-  { name: "Silver", rgb: [192, 192, 192] },
   { name: "Cream", rgb: [255, 253, 208] },
+  { name: "Silver", rgb: [192, 192, 192] }, // Restored
   { name: "Beige", rgb: [245, 245, 220] },
+  { name: "Taupe", rgb: [138, 127, 127] },
+  { name: "Light Yellow", rgb: [255, 255, 224] },
+  { name: "Warm Yellow", rgb: [255, 220, 150] },
+
+  // Grays (Explicit to prevent Taupe/Blue-Gray drift)
+  { name: "Gray", rgb: [128, 128, 128] }, // Standard
+  { name: "Dim Gray", rgb: [105, 105, 105] },
+  // Removed DarkGray/LightGray to prevent "Silver" conflicts.
+  // Silver is [192,192,192]. LightGray is [211,211,211].
+  // If we want Silver to win for [192,192,192], we just need to ensure it's the closest.
+  // But for [200,200,200], it might pick LightGray.
+  // Vibe preference: Silver is better than Light Gray.
 
   // Blues / Cyans
   { name: "Navy", rgb: [0, 0, 128] },
@@ -335,14 +346,33 @@ function getColorName(rgb) {
     return "Steel Blue";
 
   let prefix = "";
-  if (l < 0.25) prefix = "Deep ";
-  else if (l < 0.4) prefix = "Dark ";
-  else if (l > 0.75) prefix = "Light ";
+  if (l < 0.25) {
+    // "Deep" implies rich saturation. If it's dark but dull, it's just "Dark".
+    if (s > 0.6) prefix = "Deep ";
+    else prefix = "Dark ";
+
+    // Specific fix for "Deep Lime" -> Dark Green
+    if (hueName === "Lime" && l < 0.3) return "Dark Green";
+  } else if (l < 0.4) prefix = "Dark ";
+  else if (l > 0.8)
+    prefix = "Light "; // Increased from 0.75 for better "Light Yellow" vs "Yellow"
   else if (l > 0.6 && s < 0.4) prefix = "Pale ";
 
   if (s < 0.3 && l >= 0.25 && l <= 0.75) {
+    // "Muted" is good, but let's be more specific for grays
+    if (s < 0.15) {
+      // Taupe is WARM gray. Needs some saturation.
+      // Pure gray (r=g=b) has s=0.
+      if (h < 40 && l < 0.6 && s > 0.01) return "Taupe";
+      return "Gray";
+    }
     prefix = "Muted ";
   }
+
+  // Specific fix for "Orange" (Yellows)
+  // If Hue is 45-55 (Amberish), and Lightness is High (>0.8), it's Light Yellow/Cream, not Orange/Amber.
+  if ((hueName === "Orange" || hueName === "Amber") && l > 0.8)
+    return "Light Yellow";
 
   return prefix + hueName;
 }
@@ -430,70 +460,76 @@ function selectDiversePalette(colors, count, options = {}) {
 
   if (colors.length <= count) return colors;
 
-  const annotated = colors.map((rgb) => {
+  const annotated = colors.map((rgb, index) => {
     const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
     return {
       rgb,
       hsl,
       family: getColorFamily(hsl, minSaturationColorful),
+      index,
     };
   });
-
-  const HUE_FAMILIES = [
-    "red",
-    "orange",
-    "yellow",
-    "green",
-    "teal",
-    "blue",
-    "purple",
-    "magenta",
-    "neutral",
-  ];
-  const buckets = {};
-  HUE_FAMILIES.forEach((family) => (buckets[family] = []));
-  annotated.forEach((color) => buckets[color.family].push(color));
 
   const scoreColor = (c) => {
     const lightnessScore = 1 - Math.pow(Math.abs(c.hsl.l - 0.45) * 2, 1.5);
     const saturationScore = Math.min(c.hsl.s * 1.2, 1);
     const notTooExtreme = c.hsl.l > 0.15 && c.hsl.l < 0.85 ? 1 : 0.5;
-    return lightnessScore * 0.4 + saturationScore * 0.4 + notTooExtreme * 0.2;
+    const orderScore = 1 - c.index / Math.max(colors.length - 1, 1);
+    return (
+      lightnessScore * 0.28 +
+      saturationScore * 0.28 +
+      notTooExtreme * 0.14 +
+      orderScore * 0.3
+    );
   };
 
-  Object.values(buckets).forEach((bucket) => {
-    bucket.sort((a, b) => scoreColor(b) - scoreColor(a));
-  });
-
+  const ranked = annotated.slice().sort((a, b) => scoreColor(b) - scoreColor(a));
   const selected = [];
-  for (const family of HUE_FAMILIES) {
-    if (selected.length >= count) break;
-    const bucket = buckets[family];
-    if (bucket.length === 0) continue;
-    for (const candidate of bucket) {
+  const familyCounts = {};
+  const familyLimit = (family) =>
+    family === "neutral"
+      ? Math.ceil(count / 2)
+      : Math.max(1, Math.ceil(count / 3));
+  const selectFrom = (candidates, enforceFamilyLimit) => {
+    for (const candidate of candidates) {
+      if (selected.length >= count) break;
+      if (selected.includes(candidate)) continue;
+      if (
+        enforceFamilyLimit &&
+        (familyCounts[candidate.family] || 0) >= familyLimit(candidate.family)
+      )
+        continue;
       const isDifferentEnough = selected.every(
         (s) => colorDistance(s.rgb, candidate.rgb) > minColorDistance,
       );
-      if (isDifferentEnough) {
-        selected.push(candidate);
-        break;
-      }
+      if (!isDifferentEnough) continue;
+      selected.push(candidate);
+      familyCounts[candidate.family] = (familyCounts[candidate.family] || 0) + 1;
     }
-  }
+  };
 
-  // If we still need more colors, pick the next best ones regardless of family
+  selectFrom(ranked, true);
+
+  // If the image is naturally narrow in hue, fill the palette without forcing
+  // irrelevant tiny accents from unrelated families.
+  if (selected.length < count) selectFrom(ranked, false);
+
   if (selected.length < count) {
-    const flattened = Object.values(buckets).flat();
-    flattened.sort((a, b) => scoreColor(b) - scoreColor(a));
-    for (const candidate of flattened) {
+    const relaxedDistance = Math.max(18, minColorDistance * 0.65);
+    for (const candidate of ranked) {
       if (selected.length >= count) break;
       if (selected.includes(candidate)) continue;
       const isDifferentEnough = selected.every(
-        (s) => colorDistance(s.rgb, candidate.rgb) > minColorDistance,
+        (s) => colorDistance(s.rgb, candidate.rgb) > relaxedDistance,
       );
       if (isDifferentEnough) selected.push(candidate);
     }
   }
+
+  logger?.log?.("selectDiversePalette", {
+    input: colors.length,
+    output: selected.length,
+  });
 
   return selected.map((s) => s.rgb);
 }
@@ -507,95 +543,83 @@ function selectDiversePalette(colors, count, options = {}) {
  * @param {number} height - Image height
  * @param {Object} config - Configuration object (GRID_COLS, etc.)
  */
-function extractPalette(ctx, width, height, config) {
+function extractPalette(ctx, width, height, config = {}) {
   const {
     GRID_COLS = 10,
     GRID_ROWS = 8,
-    DARK_PIXEL_THRESHOLD = 25,
-    BRIGHT_PIXEL_THRESHOLD = 245,
-    DARK_RATIO_CUTOFF = 0.7,
     SKY_START_Y_RATIO = 0.15,
     SKY_END_Y_RATIO = 0.35,
   } = config;
 
   const cellWidth = Math.floor(width / GRID_COLS);
   const cellHeight = Math.floor(height / GRID_ROWS);
-  const allColors = [];
+  const globalBins = new Map();
+  const cellWinners = [];
+  let totalSamples = 0;
 
-  // 1. Grid Sampling
+  const quantize = (value) => Math.max(0, Math.min(15, value >> 4));
+  const binKey = (r, g, b) => `${quantize(r)},${quantize(g)},${quantize(b)}`;
+  const addToBin = (bins, r, g, b) => {
+    const key = binKey(r, g, b);
+    const bin = bins.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+    bin.count++;
+    bin.r += r;
+    bin.g += g;
+    bin.b += b;
+    bins.set(key, bin);
+  };
+  const binToRgb = (bin) => [
+    Math.round(bin.r / bin.count),
+    Math.round(bin.g / bin.count),
+    Math.round(bin.b / bin.count),
+  ];
+  const visualScore = (bin, total) => {
+    const rgb = binToRgb(bin);
+    const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
+    const dominance = bin.count / total;
+    const lightnessBalance = 1 - Math.abs(hsl.l - 0.5);
+    return dominance * (0.78 + hsl.s * 0.32 + lightnessBalance * 0.12);
+  };
+
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const x = col * cellWidth;
       const y = row * cellHeight;
-      // In simulation (node-canvas), getImageData might be slow, but it's correct.
-      // In browser, it's native.
-      const imageData = ctx.getImageData(x, y, cellWidth, cellHeight);
+      const w = col === GRID_COLS - 1 ? width - x : cellWidth;
+      const h = row === GRID_ROWS - 1 ? height - y : cellHeight;
+      const imageData = ctx.getImageData(x, y, w, h);
       const pixels = imageData.data;
+      const cellBins = new Map();
+      const pixelStride = Math.max(1, Math.ceil(pixels.length / 4 / 900));
+      let cellSamples = 0;
 
-      const hueBuckets = {
-        red: { pixel: null, saturation: -1 },
-        orange: { pixel: null, saturation: -1 },
-        yellow: { pixel: null, saturation: -1 },
-        green: { pixel: null, saturation: -1 },
-        teal: { pixel: null, saturation: -1 },
-        blue: { pixel: null, saturation: -1 },
-        purple: { pixel: null, saturation: -1 },
-        neutral: { pixel: null, saturation: -1 },
-      };
-
-      let darkPixelCount = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
+      for (let i = 0; i < pixels.length; i += pixelStride * 4) {
         const r = pixels[i],
           g = pixels[i + 1],
           b = pixels[i + 2],
           a = pixels[i + 3];
         if (a < 128) continue;
-        const brightness = (r + g + b) / 3;
-        if (brightness < DARK_PIXEL_THRESHOLD) {
-          darkPixelCount++;
-          continue;
-        }
-        if (brightness > BRIGHT_PIXEL_THRESHOLD) continue;
-
-        const max = Math.max(r, g, b),
-          min = Math.min(r, g, b);
-        let h = 0,
-          s = 0,
-          l = (max + min) / 2 / 255;
-        if (max !== min) {
-          const d = max - min;
-          s = l > 0.5 ? d / (255 * 2 - max - min) : d / (max + min);
-          if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
-          else if (max === g) h = ((b - r) / d + 2) * 60;
-          else h = ((r - g) / d + 4) * 60;
-        }
-
-        let bucketName;
-        if (s < 0.1) bucketName = "neutral";
-        else if (h < 30 || h >= 330) bucketName = "red";
-        else if (h < 60) bucketName = "orange";
-        else if (h < 90) bucketName = "yellow";
-        else if (h < 150) bucketName = "green";
-        else if (h < 200) bucketName = "teal";
-        else if (h < 260) bucketName = "blue";
-        else bucketName = "purple";
-
-        if (s > hueBuckets[bucketName].saturation) {
-          hueBuckets[bucketName].saturation = s;
-          hueBuckets[bucketName].pixel = [r, g, b];
-        }
+        addToBin(globalBins, r, g, b);
+        addToBin(cellBins, r, g, b);
+        totalSamples++;
+        cellSamples++;
       }
 
-      if (darkPixelCount / (pixels.length / 4) > DARK_RATIO_CUTOFF) continue;
-      for (const bucket in hueBuckets) {
-        if (hueBuckets[bucket].pixel && hueBuckets[bucket].saturation > 0.02) {
-          allColors.push(hueBuckets[bucket].pixel);
-        }
-      }
+      const topCell = [...cellBins.values()].sort(
+        (a, b) => visualScore(b, cellSamples) - visualScore(a, cellSamples),
+      )[0];
+      if (topCell && topCell.count / cellSamples >= 0.12)
+        cellWinners.push(binToRgb(topCell));
     }
   }
 
-  // 2. Corner Sampling
+  const significantGlobal = [...globalBins.values()]
+    .filter((bin) => bin.count >= Math.max(2, totalSamples * 0.0025))
+    .sort((a, b) => visualScore(b, totalSamples) - visualScore(a, totalSamples))
+    .slice(0, 56)
+    .map(binToRgb);
+
+  // Corners keep page/background colors that broad histograms sometimes blend.
   const cornerSize = Math.floor(Math.min(width, height) * 0.1);
   const corners = [
     { x: 0, y: 0 },
@@ -618,14 +642,14 @@ function extractPalette(ctx, width, height, config) {
       }
     }
     if (count > 0)
-      allColors.push([
+      significantGlobal.push([
         Math.round(rSum / count),
         Math.round(gSum / count),
         Math.round(bSum / count),
       ]);
   });
 
-  // 3. Sky Sampling
+  // Sky/top-band sampling catches common photo gradients without overweighting noise.
   const skyStartY = Math.floor(height * SKY_START_Y_RATIO);
   const skyEndY = Math.floor(height * SKY_END_Y_RATIO);
   const skyCellWidth = Math.floor(width / 8);
@@ -661,13 +685,11 @@ function extractPalette(ctx, width, height, config) {
       }
     }
     if (bestPixel && bestSat > 0.05) {
-      allColors.push(bestPixel);
-      allColors.push(bestPixel);
-      allColors.push(bestPixel);
+      significantGlobal.push(bestPixel);
     }
   }
 
-  return allColors;
+  return significantGlobal.concat(cellWinners);
 }
 
 /**
@@ -761,6 +783,7 @@ if (typeof window !== "undefined") {
     getWCAGLevel,
     colorNameToVarName,
     generateCSSVarNames,
+    extractPalette,
   };
 }
 
