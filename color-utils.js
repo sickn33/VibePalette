@@ -244,7 +244,20 @@ function formatColor(rgb, format = "hex") {
 /**
  * Gets a human-readable color name based on HSL analysis.
  */
+function getNeutralColorName(lightness) {
+  if (lightness < 0.15) return "Black";
+  if (lightness < 0.3) return "Charcoal";
+  if (lightness < 0.45) return "Dark Gray";
+  if (lightness < 0.6) return "Gray";
+  if (lightness < 0.82) return "Silver";
+  if (lightness < 0.9) return "Light Gray";
+  return "White";
+}
+
 function getColorName(rgb) {
+  const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
+  if (hsl.s < 0.02) return getNeutralColorName(hsl.l);
+
   // 1. Try to find a close match in the named colors dictionary
   const namedMatch = findNearestColor(rgb);
   if (namedMatch) {
@@ -252,19 +265,12 @@ function getColorName(rgb) {
   }
 
   // 2. Fall back to procedural generation
-  const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
   const h = hsl.h;
   const s = hsl.s;
   const l = hsl.l;
 
   if (s < 0.1) {
-    if (l < 0.15) return "Black";
-    if (l < 0.3) return "Charcoal";
-    if (l < 0.45) return "Dark Gray";
-    if (l < 0.6) return "Gray";
-    if (l < 0.75) return "Silver";
-    if (l < 0.9) return "Light Gray";
-    return "White";
+    return getNeutralColorName(l);
   }
 
   let hueName;
@@ -381,7 +387,11 @@ function getColorName(rgb) {
  * Determines the color family (hue group name).
  */
 function getColorFamily(hsl, minSaturationColorful = 0.08) {
-  if (hsl.s < minSaturationColorful) return "neutral";
+  if (
+    hsl.s < minSaturationColorful ||
+    (hsl.s < 0.1 && (hsl.l > 0.72 || hsl.l < 0.28))
+  )
+    return "neutral";
 
   const h = hsl.h;
   if (h < 15 || h >= 345) return "red";
@@ -558,8 +568,15 @@ function extractPalette(ctx, width, height, config = {}) {
   const cellWidth = Math.floor(width / GRID_COLS);
   const cellHeight = Math.floor(height / GRID_ROWS);
   const globalBins = new Map();
+  const centerBins = new Map();
+  const centerWinners = [];
   const cellWinners = [];
   let totalSamples = 0;
+  let centerSamples = 0;
+  const centerColStart = Math.floor(GRID_COLS * 0.3);
+  const centerColEnd = Math.ceil(GRID_COLS * 0.7);
+  const centerRowStart = Math.floor(GRID_ROWS * 0.25);
+  const centerRowEnd = Math.ceil(GRID_ROWS * 0.75);
 
   const quantize = (value) => Math.max(0, Math.min(15, value >> 4));
   const binKey = (r, g, b) => `${quantize(r)},${quantize(g)},${quantize(b)}`;
@@ -605,6 +622,15 @@ function extractPalette(ctx, width, height, config = {}) {
         if (a < 128) continue;
         addToBin(globalBins, r, g, b);
         addToBin(cellBins, r, g, b);
+        if (
+          col >= centerColStart &&
+          col < centerColEnd &&
+          row >= centerRowStart &&
+          row < centerRowEnd
+        ) {
+          addToBin(centerBins, r, g, b);
+          centerSamples++;
+        }
         totalSamples++;
         cellSamples++;
       }
@@ -612,8 +638,18 @@ function extractPalette(ctx, width, height, config = {}) {
       const topCell = [...cellBins.values()].sort(
         (a, b) => visualScore(b, cellSamples) - visualScore(a, cellSamples),
       )[0];
-      if (topCell && topCell.count / cellSamples >= 0.12)
-        cellWinners.push(binToRgb(topCell));
+      if (topCell && topCell.count / cellSamples >= 0.12) {
+        const winner = binToRgb(topCell);
+        cellWinners.push(winner);
+        if (
+          col >= centerColStart &&
+          col < centerColEnd &&
+          row >= centerRowStart &&
+          row < centerRowEnd
+        ) {
+          centerWinners.push(winner);
+        }
+      }
     }
   }
 
@@ -621,6 +657,12 @@ function extractPalette(ctx, width, height, config = {}) {
     .filter((bin) => bin.count >= Math.max(2, totalSamples * 0.0025))
     .sort((a, b) => visualScore(b, totalSamples) - visualScore(a, totalSamples))
     .slice(0, 56)
+    .map(binToRgb);
+
+  const significantCenter = [...centerBins.values()]
+    .filter((bin) => bin.count >= Math.max(2, centerSamples * 0.012))
+    .sort((a, b) => visualScore(b, centerSamples) - visualScore(a, centerSamples))
+    .slice(0, 16)
     .map(binToRgb);
 
   // Corners keep page/background colors that broad histograms sometimes blend.
@@ -693,7 +735,7 @@ function extractPalette(ctx, width, height, config = {}) {
     }
   }
 
-  return significantGlobal.concat(cellWinners);
+  return significantCenter.concat(centerWinners, significantGlobal, cellWinners);
 }
 
 /**

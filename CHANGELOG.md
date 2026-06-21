@@ -12,6 +12,8 @@
 - Tightened poster export quality by capping palettes at 10 colors, clamping
   saved color-count settings, filtering near-white artifacts, and cropping
   uniform image borders before rendering the collection.
+- Improved real-photo palettes by prioritizing center-subject color bins and
+  preserving pure grayscale names before fuzzy named-color matching.
 - Verified with `npm test`, `npm audit --audit-level=moderate`, and an Edge
   unpacked-extension smoke test.
 

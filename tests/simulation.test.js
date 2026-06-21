@@ -203,6 +203,15 @@ describe("Palette Simulation", () => {
       expected: ["Forest Green", "Saddle Brown", "Green"], // Light Green -> Green
     },
     {
+      name: "Centered Soft Subject",
+      elements: [
+        { type: "bg", color: [76, 96, 55] }, // Muted Lime background
+        { x: 580, y: 270, w: 760, h: 560, color: [218, 209, 180] }, // Cream blanket
+        { x: 760, y: 360, w: 320, h: 180, color: [190, 142, 154] }, // Muted pink accent
+      ],
+      expected: ["Muted Lime", "Pale Amber", "Muted Red"],
+    },
+    {
       name: "Desert",
       elements: [
         { type: "bg", color: [244, 164, 96] }, // Sandy Brown
