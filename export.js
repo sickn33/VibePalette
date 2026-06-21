@@ -127,6 +127,75 @@ function downloadTextFile(content, filename, mimeType) {
   URL.revokeObjectURL(url);
 }
 
+function getImageDrawRegion(img) {
+  const width = img.naturalWidth;
+  const height = img.naturalHeight;
+  const probe = document.createElement("canvas");
+  const probeWidth = Math.min(360, width);
+  const scale = probeWidth / width;
+  const probeHeight = Math.max(1, Math.round(height * scale));
+  probe.width = probeWidth;
+  probe.height = probeHeight;
+
+  const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+  if (!probeCtx?.getImageData) return { sx: 0, sy: 0, sw: width, sh: height };
+
+  try {
+    probeCtx.drawImage(img, 0, 0, probeWidth, probeHeight);
+    const data = probeCtx.getImageData(0, 0, probeWidth, probeHeight).data;
+    const corner = [data[0], data[1], data[2]];
+    const isBorder = (offset) => {
+      const r = data[offset];
+      const g = data[offset + 1];
+      const b = data[offset + 2];
+      const a = data[offset + 3];
+      if (a < 128) return true;
+      const brightness = (r + g + b) / 3;
+      const dr = r - corner[0];
+      const dg = g - corner[1];
+      const db = b - corner[2];
+      return brightness < 18 || Math.sqrt(dr * dr + dg * dg + db * db) < 28;
+    };
+    const rowHasContent = (y) => {
+      let content = 0;
+      for (let x = 0; x < probeWidth; x++) {
+        if (!isBorder((y * probeWidth + x) * 4)) content++;
+      }
+      return content / probeWidth > 0.08;
+    };
+    const colHasContent = (x) => {
+      let content = 0;
+      for (let y = 0; y < probeHeight; y++) {
+        if (!isBorder((y * probeWidth + x) * 4)) content++;
+      }
+      return content / probeHeight > 0.08;
+    };
+
+    let top = 0,
+      bottom = probeHeight - 1,
+      left = 0,
+      right = probeWidth - 1;
+    while (top < bottom && !rowHasContent(top)) top++;
+    while (bottom > top && !rowHasContent(bottom)) bottom--;
+    while (left < right && !colHasContent(left)) left++;
+    while (right > left && !colHasContent(right)) right--;
+
+    const cropWidth = right - left + 1;
+    const cropHeight = bottom - top + 1;
+    if ((cropWidth * cropHeight) / (probeWidth * probeHeight) > 0.92) {
+      return { sx: 0, sy: 0, sw: width, sh: height };
+    }
+    return {
+      sx: Math.max(0, Math.floor(left / scale)),
+      sy: Math.max(0, Math.floor(top / scale)),
+      sw: Math.min(width, Math.ceil(cropWidth / scale)),
+      sh: Math.min(height, Math.ceil(cropHeight / scale)),
+    };
+  } catch {
+    return { sx: 0, sy: 0, sw: width, sh: height };
+  }
+}
+
 /**
  * Generates and downloads a cinematic palette image.
  */
@@ -154,6 +223,9 @@ async function exportPaletteImage(
   const img = DOM.previewImage;
   const imgW = img.naturalWidth;
   const imgH = img.naturalHeight;
+  const imageRegion = getImageDrawRegion(img);
+  const drawW = imgW;
+  const drawH = Math.round(imageRegion.sh * (drawW / imageRegion.sw));
 
   const MAX_COLS = 7;
   let colsPerRow;
@@ -181,7 +253,7 @@ async function exportPaletteImage(
 
   const canvasWidth = imgW + padding * 2;
   const canvasHeight =
-    imgH + padding + titleSpace + numRows * rowHeight + footerSpace;
+    drawH + padding + titleSpace + numRows * rowHeight + footerSpace;
 
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
@@ -195,9 +267,19 @@ async function exportPaletteImage(
   ctx.lineWidth = 3;
   ctx.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
 
-  ctx.drawImage(img, padding, padding, imgW, imgH);
+  ctx.drawImage(
+    img,
+    imageRegion.sx,
+    imageRegion.sy,
+    imageRegion.sw,
+    imageRegion.sh,
+    padding,
+    padding,
+    drawW,
+    drawH,
+  );
   ctx.lineWidth = 1;
-  ctx.strokeRect(padding, padding, imgW, imgH);
+  ctx.strokeRect(padding, padding, drawW, drawH);
 
   ctx.fillStyle = WA_BROWN;
   ctx.textAlign = "center";
@@ -206,15 +288,15 @@ async function exportPaletteImage(
   ctx.fillText(
     "A VibePalette Collection",
     canvas.width / 2,
-    padding + imgH + titleSpace * 0.5,
+    padding + drawH + titleSpace * 0.5,
   );
 
   ctx.beginPath();
-  ctx.moveTo(canvas.width * 0.3, padding + imgH + titleSpace * 0.7);
-  ctx.lineTo(canvas.width * 0.7, padding + imgH + titleSpace * 0.7);
+  ctx.moveTo(canvas.width * 0.3, padding + drawH + titleSpace * 0.7);
+  ctx.lineTo(canvas.width * 0.7, padding + drawH + titleSpace * 0.7);
   ctx.stroke();
 
-  const paletteStartY = padding + imgH + titleSpace;
+  const paletteStartY = padding + drawH + titleSpace;
   const nameFontSize = 48;
   const hexFontSize = 36;
 
@@ -280,6 +362,7 @@ if (typeof window !== "undefined") {
     exportAsJSON,
     exportPaletteImage,
     downloadTextFile,
+    getImageDrawRegion,
   };
 }
 
@@ -292,5 +375,6 @@ if (typeof module !== "undefined" && module.exports) {
     exportAsJSON,
     exportPaletteImage,
     downloadTextFile,
+    getImageDrawRegion,
   };
 }

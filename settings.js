@@ -17,7 +17,16 @@ const SETTINGS = {
 };
 
 const MAX_HISTORY_SIZE = 5;
+const MIN_COLOR_COUNT = 5;
+const MAX_COLOR_COUNT = 10;
 let paletteHistory = [];
+
+function clampSettings() {
+  SETTINGS.colorCount = Math.max(
+    MIN_COLOR_COUNT,
+    Math.min(MAX_COLOR_COUNT, Number(SETTINGS.colorCount) || 10),
+  );
+}
 
 /**
  * Load settings from Chrome storage
@@ -27,6 +36,7 @@ async function loadSettings(logger = console) {
     const stored = await chrome.storage.sync.get(["vibepaletteSettings"]);
     if (stored && stored.vibepaletteSettings) {
       Object.assign(SETTINGS, stored.vibepaletteSettings);
+      clampSettings();
     }
   } catch (error) {
     if (logger.warn)
@@ -39,6 +49,7 @@ async function loadSettings(logger = console) {
  */
 async function saveSettings(logger = console) {
   try {
+    clampSettings();
     await chrome.storage.sync.set({ vibepaletteSettings: SETTINGS });
   } catch (error) {
     if (logger.warn) logger.warn("Could not save settings:", error);
@@ -160,6 +171,7 @@ if (typeof window !== "undefined") {
     loadPaletteHistory,
     savePaletteToHistory,
     getPaletteHistory: () => paletteHistory,
+    clampSettings,
   };
 }
 
@@ -174,5 +186,6 @@ if (typeof module !== "undefined" && module.exports) {
     loadPaletteHistory,
     savePaletteToHistory,
     getPaletteHistory: () => paletteHistory,
+    clampSettings,
   };
 }

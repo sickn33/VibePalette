@@ -398,7 +398,9 @@ function init() {
     DOM.colorCountSlider.addEventListener("input", (e) => {
       const val = parseInt(e.target.value, 10);
       Settings.SETTINGS.colorCount = val;
-      if (DOM.colorCountValue) DOM.colorCountValue.textContent = val;
+      Settings.clampSettings?.();
+      if (DOM.colorCountValue)
+        DOM.colorCountValue.textContent = Settings.SETTINGS.colorCount;
       Settings.saveSettings(logger);
       reselectFromCache();
     });

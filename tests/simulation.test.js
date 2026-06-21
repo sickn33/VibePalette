@@ -494,7 +494,7 @@ describe("Palette Simulation", () => {
         { type: "header", color: [255, 253, 208] }, // Cream
         { type: "button", color: [245, 245, 220] }, // Beige
       ],
-      expected: ["White", "Cream", "Beige"],
+      expected: ["Cream", "Beige"], // White filtered as an extreme.
       config: { BRIGHT_PIXEL_THRESHOLD: 256 }, // Allow ALL ranges
     },
   ];

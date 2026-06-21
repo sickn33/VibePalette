@@ -19,7 +19,7 @@ and extracting polished, export-ready color palettes.
   - Share as a Coolors URL
   - Export as PNG, CSS custom properties, or JSON
 - 🔧 **Customizable**:
-  - Adjust color count
+  - Adjust color count (5-10)
   - Choose formats (HEX, RGB, HSL)
   - Auto, dark, and light themes
 - ⌨️ **Keyboard Shortcuts**:

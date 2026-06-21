@@ -409,7 +409,11 @@ function colorDistance(c1, c2) {
  * Checks if a color is near white.
  */
 function isNearWhite(rgb, threshold = 240) {
-  return rgb[0] > threshold && rgb[1] > threshold && rgb[2] > threshold;
+  const average = (rgb[0] + rgb[1] + rgb[2]) / 3;
+  return (
+    (rgb[0] > threshold && rgb[1] > threshold && rgb[2] > threshold) ||
+    (average > threshold - 5 && Math.min(rgb[0], rgb[1], rgb[2]) > threshold - 18)
+  );
 }
 
 /**
