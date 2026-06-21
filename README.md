@@ -1,25 +1,27 @@
-# VibePalette 🎨
+# VibePalette
 
-**VibePalette** is a Chrome Extension that lets you extract beautiful color palettes from any image or website on your screen.
+**VibePalette 2.0.0** is a Chrome/Edge extension for capturing the current tab
+and extracting polished, export-ready color palettes.
 
 ![VibePalette logo](icons/icon128.png)
 
 ## Features
 
 - 📸 **Instant Capture**: Takes a screenshot of your current tab instantly.
-- 🎨 **Smart Extraction**: Uses a hue-diversity algorithm to find the most interesting colors, not just the most dominant ones.
-- 🎬 **Cinematic Export**: Save your palette as a "Wes Anderson" style Title Card with:
-  - 📏 **Double Framing** & Symmetric Layout
-  - 🖋️ **Massive Typography** for readability
-  - ⚖️ **Smart Row Balancing** algorithm
-  - 🎞️ **Vintage Palette** & Esthetic
+- 🎨 **Real-image palette extraction**: Uses dominance-aware RGB bins, cell
+  winners, corner sampling, and top-band sampling to avoid tiny saturated noise.
+- 🧭 **Balanced palette selection**: Preserves meaningful color diversity without
+  forcing irrelevant hue families.
+- 🎬 **Cinematic Export**: Save palettes as framed image exports with balanced
+  rows, readable labels, and optional color codes.
 - 💻 **Dev-Friendly Exports**:
-  - Copy as CSS Variables (`:root { --palette-1: #... }`)
-  - Export as JSON
+  - Copy palette colors
+  - Share as a Coolors URL
+  - Export as PNG, CSS custom properties, or JSON
 - 🔧 **Customizable**:
-  - Adjust color count (5-15)
+  - Adjust color count
   - Choose formats (HEX, RGB, HSL)
-  - Dark/Light mode support
+  - Auto, dark, and light themes
 - ⌨️ **Keyboard Shortcuts**:
   - `R`: Recapture
   - `C`: Copy all colors
@@ -29,7 +31,8 @@
 ## Installation
 
 1. Clone this repository.
-2. Open Chrome and navigate to `chrome://extensions/`.
+2. Open Chrome or Edge and navigate to `chrome://extensions/` or
+   `edge://extensions/`.
 3. Enable **Developer mode** (top right toggle).
 4. Click **Load unpacked**.
 5. Select the `VibePalette` folder.
@@ -37,17 +40,21 @@
 ## Technologies
 
 - **Vanilla JavaScript** (No heavy frameworks)
-- **ColorThief** (for base color extraction)
+- **ColorThief + custom palette heuristics** (candidate extraction and ranking)
 - **HTML5 Canvas** (for image processing)
 - **Vitest & JSDOM** (for automated testing)
+- **ImageMagick** (optional local dependency for real-image regression tests)
 
 ## Project Structure
 
 - `background.js`: Extension background logic.
-- `popup.*`: The main extension interface and logic.
+- `popup.*`: Main extension interface and capture flow.
+- `settings.js`: Settings persistence and theme state.
+- `export.js`: PNG, CSS, JSON, and share export helpers.
 - `lib/`: Third-party dependencies.
+- `fonts/`: Bundled export/UI fonts.
 - `icons/`: Extension assets.
-- `tests/`: Automated unit tests.
+- `tests/`: Automated unit, popup, manifest, simulation, and real-image tests.
 - `docs/`: Development logs and planning.
 
 ## Development
@@ -59,4 +66,10 @@ npm install
 npm test
 ```
 
-MIT
+## Release
+
+Current release: **2.0.0**.
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+MIT License.

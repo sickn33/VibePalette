@@ -9,3 +9,10 @@
 - **[2026-01-23]**: Starting TDD Verification phase. Goal: Set up Vitest and write automated tests for corrected logic.
 - **[2026-01-23]**: Successfully verified optimizations and core logic using TDD Cycle (RED-GREEN-REFACTOR). All tests passing.
 - **[2026-01-23]**: Debugged Vitest/JSDOM execution errors (Mocked Canvas and Clipboard). Final suite is clean (0 errors, exit code 0).
+- **[2026-06-21]**: Completed public-deliverable pass for v2.0.0: UI polish,
+  settings/export modules, manifest storage permission, MIT license, and
+  package metadata alignment.
+- **[2026-06-21]**: Reworked palette extraction around real-image sampling and
+  added scikit-image regression fixtures.
+- **[2026-06-21]**: Verified v2.0.0 with `npm test`, `npm audit
+  --audit-level=moderate`, and an Edge unpacked-extension smoke test.

@@ -1,0 +1,15 @@
+# Changelog
+
+## 2.0.0 - 2026-06-21
+
+- Improved palette extraction with dominance-aware real-image sampling.
+- Replaced family-first palette selection with weighted, distance-aware ranking.
+- Added settings persistence, export helpers, bundled fonts, and MIT license.
+- Added manifest, popup, simulation, and real-image regression coverage.
+- Documented scikit-image fixture provenance for public test assets.
+- Verified with `npm test`, `npm audit --audit-level=moderate`, and an Edge
+  unpacked-extension smoke test.
+
+## 1.2.0
+
+- Previous packaged extension version archived under `archives/`.
