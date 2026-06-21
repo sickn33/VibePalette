@@ -258,6 +258,18 @@ function getColorName(rgb) {
   const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
   if (hsl.s < 0.02) return getNeutralColorName(hsl.l);
 
+  const h = hsl.h;
+  const s = hsl.s;
+  const l = hsl.l;
+
+  if (h >= 190 && h < 220 && l > 0.85 && s > 0.18) {
+    return "Light Sky Blue";
+  }
+
+  if (h >= 15 && h <= 40 && s >= 0.12 && s < 0.28 && l >= 0.48 && l < 0.78) {
+    return l < 0.58 ? "Taupe" : "Tan";
+  }
+
   // 1. Try to find a close match in the named colors dictionary
   const namedMatch = findNearestColor(rgb);
   if (namedMatch) {
@@ -265,10 +277,6 @@ function getColorName(rgb) {
   }
 
   // 2. Fall back to procedural generation
-  const h = hsl.h;
-  const s = hsl.s;
-  const l = hsl.l;
-
   if (s < 0.1) {
     return getNeutralColorName(l);
   }

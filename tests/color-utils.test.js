@@ -33,6 +33,12 @@ describe("ColorUtils", () => {
       expect(getColorName([80, 100, 80])).toBe("Gray"));
     it("identifies pure mid gray before fuzzy named colors", () =>
       expect(getColorName([136, 136, 136])).toBe("Gray"));
+    it("keeps pale sky blue from drifting to Lavender", () =>
+      expect(getColorName([216, 234, 245])).toBe("Light Sky Blue"));
+    it("keeps soft warm neutrals from drifting to Muted Vermilion", () => {
+      expect(getColorName([199, 181, 169])).toBe("Tan");
+      expect(getColorName([169, 151, 134])).toBe("Tan");
+    });
 
     // Perceptual naming tests (Phase 3 TDD)
     it("identifies Pink", () =>
